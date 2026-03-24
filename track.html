@@ -304,6 +304,7 @@
     crossorigin="">
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js" defer></script>
+  <script src="js/app-config.js"></script>
 </head>
 <body>
   <header class="top-bar">
@@ -397,9 +398,10 @@
   </footer>
 
   <script>
-    const SUPABASE_URL = 'https://shsgyoeuponjemicmyvd.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_VndNb4MsmH2pVY4Y2oiLHw_DJgUct-Y';
-    const BUS_ID = 'bus_07';
+    const CFG = window.BUSBUDDY_CONFIG || {};
+    const SUPABASE_URL = CFG.supabaseUrl || '';
+    const SUPABASE_ANON_KEY = CFG.supabaseAnonKey || '';
+    const BUS_ID = CFG.defaultBusId || 'bus_07';
 
     let supabaseClient = null;
     let map = null;

@@ -7,6 +7,8 @@ This project now supports:
 
 ## 1) Frontend webhook setting
 
+Supabase project URL and anon key live in **`js/app-config.js`** (shared with `track.html` / `driver.html`).
+
 `index.html` picks the SMS function URL automatically:
 
 - **localhost / 127.0.0.1** → `http://127.0.0.1:54321/functions/v1/send-parent-sms`
