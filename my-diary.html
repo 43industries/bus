@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BusBuddy — My Diary</title>
+  <meta name="description" content="School diary: pupil details, next of kin, medical info, and weekly homework. Parents and teachers update; students view." />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy: #1a237e;
+      --yellow: #ffd93d;
+      --card: #fff;
+      --bg: #fff8e7;
+      --text: #2d3748;
+      --soft: #718096;
+      --border: #ede7d0;
+      --green: #66bb6a;
+      --blue: #4fc3f7;
+    }
+    html[data-theme="dark"] {
+      --card: #0f1b33;
+      --bg: #0b1220;
+      --text: #eaf2ff;
+      --soft: rgba(234, 242, 255, 0.75);
+      --border: rgba(234, 242, 255, 0.14);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Quicksand', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 48px;
+    }
+    header {
+      background: linear-gradient(135deg, var(--yellow), #ffe066);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    header h1 {
+      font-family: 'Baloo 2', cursive;
+      font-size: 1.35rem;
+      color: var(--navy);
+      margin: 0;
+    }
+    header a {
+      color: var(--navy);
+      font-weight: 700;
+      text-decoration: none;
+      font-size: 0.88rem;
+    }
+    header a:hover { text-decoration: underline; }
+    .gate {
+      max-width: 920px;
+      margin: 20px auto;
+      padding: 0 16px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-family: 'Baloo 2', cursive;
+      font-size: 1.1rem;
+      color: var(--navy);
+      margin: 0 0 12px;
+      border-bottom: 2px dashed var(--border);
+      padding-bottom: 8px;
+    }
+    label { font-size: 0.78rem; font-weight: 700; color: var(--soft); display: block; margin-bottom: 4px; }
+    input, textarea, select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 2px solid var(--border);
+      font-family: inherit;
+      font-size: 0.88rem;
+      margin-bottom: 10px;
+      background: var(--card);
+      color: var(--text);
+    }
+    textarea { min-height: 64px; resize: vertical; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 640px) { .row2 { grid-template-columns: 1fr; } }
+    .roles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .roles label.pick {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 2px solid var(--border);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+    .roles input { width: auto; margin: 0; }
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--yellow), #ffc107);
+      color: var(--navy);
+      box-shadow: 0 4px 14px rgba(255, 217, 61, 0.45);
+    }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .err { color: #c62828; font-size: 0.82rem; font-weight: 700; margin-top: 8px; }
+    .hint { font-size: 0.8rem; color: var(--soft); margin-top: 8px; line-height: 1.4; }
+    .readonly .btn-primary[onclick*="save"], .readonly #btn-save { display: none !important; }
+    .readonly input, .readonly textarea, .readonly select { pointer-events: none; opacity: 0.92; }
+    .readonly .sign-btn { display: none !important; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .tab {
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 2px solid var(--border);
+      background: transparent;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.82rem;
+    }
+    .tab.active { background: var(--blue); color: #fff; border-color: #0288d1; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    table.ggrid { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    table.ggrid th, table.ggrid td { border: 1px solid var(--border); padding: 6px; text-align: left; }
+    table.ggrid th { background: rgba(79, 195, 247, 0.2); }
+    .day-block {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: rgba(79, 195, 247, 0.06);
+    }
+    .day-block h3 { margin: 0 0 8px; font-size: 0.95rem; color: var(--navy); }
+    .week-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .badge-ro {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--green);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 800;
+    }
+    .sign-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; font-size: 0.78rem; }
+    .signed { color: var(--green); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📔 My Diary</h1>
+    <nav>
+      <a href="index.html">← BusBuddy home</a>
+    </nav>
+  </header>
+
+  <div class="gate" id="app">
+    <div class="card" id="gate-card">
+      <h2>Open diary</h2>
+      <p class="hint">
+        <strong>Student:</strong> view only.<br />
+        <strong>Parent:</strong> edit and sign (admission number).<br />
+        <strong>Teacher:</strong> sign in with your school email, then edit and sign.
+      </p>
+      <div class="roles">
+        <label class="pick"><input type="radio" name="role" value="student" checked /> Student</label>
+        <label class="pick"><input type="radio" name="role" value="parent" /> Parent</label>
+        <label class="pick"><input type="radio" name="role" value="teacher" /> Teacher</label>
+      </div>
+      <label for="adm">Admission number</label>
+      <input id="adm" type="text" placeholder="e.g. ADM1001" autocomplete="off" />
+
+      <div id="teacher-auth" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);">
+        <label for="t-email">Teacher email</label>
+        <input id="t-email" type="email" autocomplete="username" />
+        <label for="t-pass">Password</label>
+        <input id="t-pass" type="password" autocomplete="current-password" />
+        <div class="row2" style="margin-top:8px;">
+          <button type="button" class="btn btn-primary" id="t-login">Teacher sign in</button>
+          <button type="button" class="btn btn-secondary" id="t-logout" style="display:none;">Sign out</button>
+        </div>
+        <p class="hint" id="t-status">Not signed in</p>
+      </div>
+
+      <button type="button" class="btn btn-primary" id="btn-open" style="margin-top:14px;">Open My Diary</button>
+      <div class="err" id="gate-err" role="alert"></div>
+    </div>
+
+    <div id="diary-root" style="display:none;"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js"></script>
+  <script src="js/app-config.js"></script>
+  <script>
+    const CFG = window.BUSBUDDY_CONFIG || {};
+    const SUPABASE_URL = CFG.supabaseUrl || '';
+    const SUPABASE_ANON_KEY = CFG.supabaseAnonKey || '';
+
+    let supabase = null;
+    let viewRole = 'student';
+    let admission = '';
+    let rootPayload = null;
+    let studentName = '';
+    let weekKey = '';
+
+    function mondayISO(d) {
+      const x = new Date(d);
+      const day = x.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      x.setDate(x.getDate() + diff);
+      return x.toISOString().slice(0, 10);
+    }
+
+    function defaultPayload() {
+      const g = () => ({
+        name: '', occupation: '', employer: '', placeOfWork: '', postalAddress: '',
+        officeTel: '', homeTel: '', cell: '', physicalAddress: '', email: '',
+      });
+      return {
+        pupil: {
+          firstName: '', middleName: '', lastName: '', birthDate: '', gender: '',
+          nationality: '', religion: '', classGrade: '',
+        },
+        guardians: { father: g(), mother: g(), guardian: g() },
+        nextOfKin: [
+          { fullName: '', relationship: '', cell: '', telephone: '', email: '' },
+          { fullName: '', relationship: '', cell: '', telephone: '', email: '' },
+        ],
+        medical: {
+          familyDoctor: '', preferredHospital: '', medicalCover: '', conditions: '',
+        },
+        weeks: {},
+      };
+    }
+
+    function mergePayload(raw) {
+      const d = defaultPayload();
+      if (!raw || typeof raw !== 'object') return d;
+      Object.assign(d.pupil, raw.pupil || {});
+      ['father', 'mother', 'guardian'].forEach((k) => {
+        if (raw.guardians && raw.guardians[k]) Object.assign(d.guardians[k], raw.guardians[k]);
+      });
+      if (Array.isArray(raw.nextOfKin)) {
+        raw.nextOfKin.forEach((row, i) => {
+          if (i < 2 && row) Object.assign(d.nextOfKin[i], row);
+        });
+      }
+      Object.assign(d.medical, raw.medical || {});
+      d.weeks = raw.weeks && typeof raw.weeks === 'object' ? raw.weeks : {};
+      return d;
+    }
+
+    function ensureWeek(p, key) {
+      if (!p.weeks[key]) {
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((label) => ({
+          label,
+          homework: '',
+          dateDue: '',
+          done: false,
+          teacherComment: '',
+          teacherSignedAt: null,
+          parentComment: '',
+          parentSignedAt: null,
+        }));
+        p.weeks[key] = {
+          days,
+          weeklyTeacherComment: '',
+          weeklyParentComment: '',
+          weeklyTeacherSignedAt: null,
+          weeklyParentSignedAt: null,
+        };
+      }
+      return p.weeks[key];
+    }
+
+    function initSb() {
+      if (!window.supabase || !SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+      if (!supabase) supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      return supabase;
+    }
+
+    function getSelectedRole() {
+      const r = document.querySelector('input[name="role"]:checked');
+      return r ? r.value : 'student';
+    }
+
+    function setGateError(msg) {
+      const el = document.getElementById('gate-err');
+      if (el) el.textContent = msg || '';
+    }
+
+    document.querySelectorAll('input[name="role"]').forEach((r) => {
+      r.addEventListener('change', () => {
+        const teacher = getSelectedRole() === 'teacher';
+        document.getElementById('teacher-auth').style.display = teacher ? 'block' : 'none';
+      });
+    });
+
+    document.getElementById('t-login').addEventListener('click', async () => {
+      const client = initSb();
+      if (!client) return;
+      const email = (document.getElementById('t-email').value || '').trim();
+      const password = (document.getElementById('t-pass').value || '').trim();
+      const st = document.getElementById('t-status');
+      if (!email || !password) {
+        st.textContent = 'Enter email and password.';
+        return;
+      }
+      const { error, data } = await client.auth.signInWithPassword({ email, password });
+      if (error) {
+        st.textContent = error.message;
+        return;
+      }
+      st.textContent = 'Signed in as ' + (data.user?.email || 'teacher');
+      document.getElementById('t-logout').style.display = 'inline-block';
+    });
+
+    document.getElementById('t-logout').addEventListener('click', async () => {
+      const client = initSb();
+      if (client) await client.auth.signOut();
+      document.getElementById('t-status').textContent = 'Not signed in';
+      document.getElementById('t-logout').style.display = 'none';
+    });
+
+    document.getElementById('btn-open').addEventListener('click', async () => {
+      setGateError('');
+      const client = initSb();
+      if (!client) {
+        setGateError('Supabase is not configured.');
+        return;
+      }
+      viewRole = getSelectedRole();
+      admission = (document.getElementById('adm').value || '').trim().toUpperCase();
+      if (!admission) {
+        setGateError('Enter an admission number.');
+        return;
+      }
+      if (viewRole === 'teacher') {
+        const { data: s } = await client.auth.getSession();
+        if (!s.session) {
+          setGateError('Teachers must sign in with email and password first.');
+          return;
+        }
+      }
+
+      const { data, error } = await client.rpc('get_my_diary', { p_admission: admission });
+      if (error) {
+        setGateError(error.message);
+        return;
+      }
+      if (data == null) {
+        setGateError('No student found for that admission.');
+        return;
+      }
+
+      studentName = data.studentName || '';
+      rootPayload = mergePayload(data.payload);
+      weekKey = mondayISO(new Date());
+      document.getElementById('gate-card').style.display = 'none';
+      renderDiary();
+    });
+
+    function readonly() {
+      return viewRole === 'student';
+    }
+
+    function renderDiary() {
+      const root = document.getElementById('diary-root');
+      const ro = readonly();
+      root.style.display = 'block';
+      root.className = ro ? 'gate readonly' : 'gate';
+      root.innerHTML = `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div>
+              <strong style="font-family:'Baloo 2',cursive;font-size:1.1rem;color:var(--navy);">${escapeHtml(studentName)}</strong>
+              <span style="color:var(--soft);font-size:0.85rem;"> · ${escapeHtml(admission)}</span>
+            </div>
+            ${ro ? '<span class="badge-ro">View only (student)</span>' : '<span class="badge-ro" style="background:#0288d1;">Edit & sign (' + escapeHtml(viewRole) + ')</span>'}
+          </div>
+          <button type="button" class="btn btn-secondary" style="margin-top:10px;" onclick="location.reload()">← Back</button>
+        </div>
+
+        <div class="card">
+          <div class="tabs">
+            <button type="button" class="tab active" data-tab="p1">Pupil & guardians</button>
+            <button type="button" class="tab" data-tab="p2">Next of kin & medical</button>
+            <button type="button" class="tab" data-tab="p3">Weekly diary</button>
+          </div>
+          <div id="panel-p1" class="panel active"></div>
+          <div id="panel-p2" class="panel"></div>
+          <div id="panel-p3" class="panel"></div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <button type="button" class="btn btn-primary" id="btn-save">Save diary</button>
+          <p class="hint" id="save-msg"></p>
+        </div>
+      `;
+
+      fillPanels();
+      document.querySelectorAll('.tab').forEach((t) => {
+        t.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+          document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
+          t.classList.add('active');
+          document.getElementById('panel-' + t.getAttribute('data-tab')).classList.add('active');
+        });
+      });
+
+      const saveBtn = document.getElementById('btn-save');
+      if (ro) {
+        if (saveBtn) saveBtn.style.display = 'none';
+      } else {
+        saveBtn.addEventListener('click', saveDiary);
+      }
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+
+    function val(id) {
+      const el = document.getElementById(id);
+      return el ? el.value : '';
+    }
+
+    function fillPanels() {
+      const p = rootPayload;
+      const pup = p.pupil;
+
+      document.getElementById('panel-p1').innerHTML = `
+        <h2>Pupil’s personal information</h2>
+        <div class="row2">
+          <div><label>First name</label><input id="pf" value="${escapeHtml(pup.firstName)}" /></div>
+          <div><label>Middle name</label><input id="pm" value="${escapeHtml(pup.middleName)}" /></div>
+        </div>
+        <div class="row2">
+          <div><label>Last name</label><input id="pl" value="${escapeHtml(pup.lastName)}" /></div>
+          <div><label>Birth date</label><input id="pb" type="text" placeholder="DD/MM/YYYY" value="${escapeHtml(pup.birthDate)}" /></div>
+        </div>
+        <div class="row2">
+          <div><label>Gender</label><input id="pg" value="${escapeHtml(pup.gender)}" /></div>
+          <div><label>Nationality</label><input id="pn" value="${escapeHtml(pup.nationality)}" /></div>
+        </div>
+        <div class="row2">
+          <div><label>Religion</label><input id="pr" value="${escapeHtml(pup.religion)}" /></div>
+          <div><label>Class / grade</label><input id="pc" value="${escapeHtml(pup.classGrade)}" /></div>
+        </div>
+        <h2 style="margin-top:18px;">Parent / guardian contacts</h2>
+        ${['father', 'mother', 'guardian'].map((role) => {
+          const g = p.guardians[role] || {};
+          const R = role.charAt(0).toUpperCase() + role.slice(1);
+          return `<h3 style="font-size:0.9rem;margin:12px 0 6px;">${R}</h3>
+          <div class="row2"><div><label>Name</label><input id="g_${role}_name" value="${escapeHtml(g.name)}" /></div>
+          <div><label>Occupation</label><input id="g_${role}_occ" value="${escapeHtml(g.occupation)}" /></div></div>
+          <div class="row2"><div><label>Employer</label><input id="g_${role}_emp" value="${escapeHtml(g.employer)}" /></div>
+          <div><label>Place of work</label><input id="g_${role}_pow" value="${escapeHtml(g.placeOfWork)}" /></div></div>
+          <div class="row2"><div><label>Postal address</label><input id="g_${role}_post" value="${escapeHtml(g.postalAddress)}" /></div>
+          <div><label>Office telephone</label><input id="g_${role}_off" value="${escapeHtml(g.officeTel)}" /></div></div>
+          <div class="row2"><div><label>Home telephone</label><input id="g_${role}_home" value="${escapeHtml(g.homeTel)}" /></div>
+          <div><label>Cell phone</label><input id="g_${role}_cell" value="${escapeHtml(g.cell)}" /></div></div>
+          <div class="row2"><div><label>Physical address</label><input id="g_${role}_phy" value="${escapeHtml(g.physicalAddress)}" /></div>
+          <div><label>Email</label><input id="g_${role}_email" value="${escapeHtml(g.email)}" /></div></div>`;
+        }).join('')}
+      `;
+
+      const nk = p.nextOfKin;
+      const med = p.medical;
+      document.getElementById('panel-p2').innerHTML = `
+        <h2>Next of kin (emergency)</h2>
+        ${[0, 1].map((i) => {
+          const k = nk[i] || {};
+          return `<div class="day-block"><h3>Kin ${i + 1}</h3>
+            <div class="row2"><div><label>Full name</label><input id="nk${i}_name" value="${escapeHtml(k.fullName)}" /></div>
+            <div><label>Relationship</label><input id="nk${i}_rel" value="${escapeHtml(k.relationship)}" /></div></div>
+            <div class="row2"><div><label>Cell phone</label><input id="nk${i}_cell" value="${escapeHtml(k.cell)}" /></div>
+            <div><label>Telephone</label><input id="nk${i}_tel" value="${escapeHtml(k.telephone)}" /></div></div>
+            <label>Email</label><input id="nk${i}_email" value="${escapeHtml(k.email)}" /></div>`;
+        }).join('')}
+        <h2 style="margin-top:18px;">Medical details</h2>
+        <label>Family doctor</label><input id="md_doc" value="${escapeHtml(med.familyDoctor)}" />
+        <label>Preferred hospital</label><input id="md_hosp" value="${escapeHtml(med.preferredHospital)}" />
+        <label>Medical cover</label><input id="md_cover" value="${escapeHtml(med.medicalCover)}" />
+        <label>Conditions (e.g. allergies)</label><textarea id="md_cond">${escapeHtml(med.conditions)}</textarea>
+        <p class="hint">If contact or medical details change, notify the school immediately.</p>
+      `;
+
+      renderWeekPanel();
+    }
+
+    function renderWeekPanel() {
+      const wk = ensureWeek(rootPayload, weekKey);
+      const wkNav = `
+        <div class="week-nav">
+          <button type="button" class="btn btn-secondary" id="wk-prev">← Previous week</button>
+          <strong>Week starting ${weekKey}</strong>
+          <button type="button" class="btn btn-secondary" id="wk-next">Next week →</button>
+        </div>
+      `;
+      let daysHtml = wk.days.map((d, idx) => `
+        <div class="day-block">
+          <h3>${escapeHtml(d.label)} <span style="font-weight:600;color:var(--soft);font-size:0.8rem;">${escapeHtml(d.date || '')}</span></h3>
+          <label>Activity / subject / homework</label>
+          <textarea id="day_${idx}_hw">${escapeHtml(d.homework)}</textarea>
+          <div class="row2">
+            <div><label>Date due</label><input id="day_${idx}_due" value="${escapeHtml(d.dateDue)}" /></div>
+            <div><label>Done</label><select id="day_${idx}_done"><option value="false">No</option><option value="true" ${d.done ? 'selected' : ''}>Yes</option></select></div>
+          </div>
+          <label>Teacher’s comments</label>
+          <textarea id="day_${idx}_tc">${escapeHtml(d.teacherComment)}</textarea>
+          <div class="sign-row">
+            <button type="button" class="btn btn-secondary sign-btn" data-sign="t" data-i="${idx}">Sign as teacher</button>
+            <span class="signed" id="day_${idx}_ts">${d.teacherSignedAt ? 'Signed: ' + escapeHtml(d.teacherSignedAt) : ''}</span>
+          </div>
+          <label>Parent’s comments</label>
+          <textarea id="day_${idx}_pc">${escapeHtml(d.parentComment)}</textarea>
+          <div class="sign-row">
+            <button type="button" class="btn btn-secondary sign-btn" data-sign="p" data-i="${idx}">Sign as parent</button>
+            <span class="signed" id="day_${idx}_ps">${d.parentSignedAt ? 'Signed: ' + escapeHtml(d.parentSignedAt) : ''}</span>
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('panel-p3').innerHTML = `
+        <h2>Weekly homework & comments</h2>
+        ${wkNav}
+        ${daysHtml}
+        <h3 style="margin-top:16px;">General comments (week)</h3>
+        <label>Teacher’s comments</label>
+        <textarea id="wk_wtc">${escapeHtml(wk.weeklyTeacherComment)}</textarea>
+        <div class="sign-row">
+          <button type="button" class="btn btn-secondary sign-btn" id="sign-wt">Sign as teacher</button>
+          <span class="signed" id="wk_wts">${wk.weeklyTeacherSignedAt ? 'Signed: ' + escapeHtml(wk.weeklyTeacherSignedAt) : ''}</span>
+        </div>
+        <label>Parent’s comments</label>
+        <textarea id="wk_wpc">${escapeHtml(wk.weeklyParentComment)}</textarea>
+        <div class="sign-row">
+          <button type="button" class="btn btn-secondary sign-btn" id="sign-wp">Sign as parent</button>
+          <span class="signed" id="wk_wps">${wk.weeklyParentSignedAt ? 'Signed: ' + escapeHtml(wk.weeklyParentSignedAt) : ''}</span>
+        </div>
+      `;
+
+      document.getElementById('wk-prev').addEventListener('click', () => {
+        const d = new Date(weekKey + 'T12:00:00');
+        d.setDate(d.getDate() - 7);
+        weekKey = mondayISO(d);
+        collectFromForm();
+        renderWeekPanel();
+      });
+      document.getElementById('wk-next').addEventListener('click', () => {
+        const d = new Date(weekKey + 'T12:00:00');
+        d.setDate(d.getDate() + 7);
+        weekKey = mondayISO(d);
+        collectFromForm();
+        renderWeekPanel();
+      });
+
+      document.querySelectorAll('.sign-btn[data-sign]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (readonly()) return;
+          const i = Number(btn.getAttribute('data-i'));
+          const isT = btn.getAttribute('data-sign') === 't';
+          const iso = new Date().toISOString();
+          const w = ensureWeek(rootPayload, weekKey);
+          if (isT) {
+            if (viewRole !== 'teacher') { alert('Only a teacher can sign here.'); return; }
+            w.days[i].teacherSignedAt = iso;
+          } else {
+            if (viewRole !== 'parent') { alert('Only a parent can sign here.'); return; }
+            w.days[i].parentSignedAt = iso;
+          }
+          renderWeekPanel();
+        });
+      });
+      document.getElementById('sign-wt').addEventListener('click', () => {
+        if (readonly() || viewRole !== 'teacher') { alert('Only a teacher can sign here.'); return; }
+        ensureWeek(rootPayload, weekKey).weeklyTeacherSignedAt = new Date().toISOString();
+        renderWeekPanel();
+      });
+      document.getElementById('sign-wp').addEventListener('click', () => {
+        if (readonly() || viewRole !== 'parent') { alert('Only a parent can sign here.'); return; }
+        ensureWeek(rootPayload, weekKey).weeklyParentSignedAt = new Date().toISOString();
+        renderWeekPanel();
+      });
+    }
+
+    function collectFromForm() {
+      const p = rootPayload;
+      const pup = p.pupil;
+      const set = (id, obj, key) => {
+        const el = document.getElementById(id);
+        if (el) obj[key] = el.value;
+      };
+      set('pf', pup, 'firstName');
+      set('pm', pup, 'middleName');
+      set('pl', pup, 'lastName');
+      set('pb', pup, 'birthDate');
+      set('pg', pup, 'gender');
+      set('pn', pup, 'nationality');
+      set('pr', pup, 'religion');
+      set('pc', pup, 'classGrade');
+
+      ['father', 'mother', 'guardian'].forEach((role) => {
+        const g = p.guardians[role];
+        set(`g_${role}_name`, g, 'name');
+        set(`g_${role}_occ`, g, 'occupation');
+        set(`g_${role}_emp`, g, 'employer');
+        set(`g_${role}_pow`, g, 'placeOfWork');
+        set(`g_${role}_post`, g, 'postalAddress');
+        set(`g_${role}_off`, g, 'officeTel');
+        set(`g_${role}_home`, g, 'homeTel');
+        set(`g_${role}_cell`, g, 'cell');
+        set(`g_${role}_phy`, g, 'physicalAddress');
+        set(`g_${role}_email`, g, 'email');
+      });
+
+      [0, 1].forEach((i) => {
+        const k = p.nextOfKin[i];
+        set(`nk${i}_name`, k, 'fullName');
+        set(`nk${i}_rel`, k, 'relationship');
+        set(`nk${i}_cell`, k, 'cell');
+        set(`nk${i}_tel`, k, 'telephone');
+        set(`nk${i}_email`, k, 'email');
+      });
+
+      const med = p.medical;
+      set('md_doc', med, 'familyDoctor');
+      set('md_hosp', med, 'preferredHospital');
+      set('md_cover', med, 'medicalCover');
+      const mdCond = document.getElementById('md_cond');
+      if (mdCond) med.conditions = mdCond.value;
+
+      const w = ensureWeek(p, weekKey);
+      w.days.forEach((d, idx) => {
+        const hw = document.getElementById(`day_${idx}_hw`);
+        const due = document.getElementById(`day_${idx}_due`);
+        const done = document.getElementById(`day_${idx}_done`);
+        const tc = document.getElementById(`day_${idx}_tc`);
+        const pc = document.getElementById(`day_${idx}_pc`);
+        if (hw) d.homework = hw.value;
+        if (due) d.dateDue = due.value;
+        if (done) d.done = done.value === 'true';
+        if (tc) d.teacherComment = tc.value;
+        if (pc) d.parentComment = pc.value;
+      });
+      const wtc = document.getElementById('wk_wtc');
+      const wpc = document.getElementById('wk_wpc');
+      if (wtc) w.weeklyTeacherComment = wtc.value;
+      if (wpc) w.weeklyParentComment = wpc.value;
+    }
+
+    async function saveDiary() {
+      const msg = document.getElementById('save-msg');
+      msg.textContent = '';
+      collectFromForm();
+      const client = initSb();
+      if (!client) return;
+
+      const { data, error } = await client.rpc('save_my_diary', {
+        p_admission: admission,
+        p_payload: rootPayload,
+        p_role: viewRole,
+      });
+      if (error) {
+        msg.textContent = error.message || 'Save failed';
+        return;
+      }
+      if (data && data.payload) rootPayload = mergePayload(data.payload);
+      msg.textContent = 'Saved.';
+      setTimeout(() => { msg.textContent = ''; }, 2500);
+    }
+
+    initSb();
+  </script>
+</body>
+</html>
