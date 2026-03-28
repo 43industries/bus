@@ -39,17 +39,74 @@ serve(async (req) => {
     });
   }
 
-  const recipients = (body.recipients ?? []).map(normalizePhone).filter(Boolean);
+  let recipients = (body.recipients ?? []).map(normalizePhone).filter(Boolean);
   const message = (body.message ?? "").trim();
 
-  if (!recipients.length || !message) {
-    return new Response(
-      JSON.stringify({ error: "recipients[] and message are required" }),
-      {
+  if (!message) {
+    return new Response(JSON.stringify({ error: "message is required" }), {
+      status: 400,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")?.replace(/\/$/, "");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const admission = String(body.studentAdmission ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (supabaseUrl && serviceKey) {
+    if (!admission) {
+      return new Response(
+        JSON.stringify({ error: "studentAdmission is required" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+      );
+    }
+    if (!recipients.length) {
+      return new Response(JSON.stringify({ error: "recipients[] is required" }), {
         status: 400,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      },
-    );
+      });
+    }
+    try {
+      const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/get_parent_profile`, {
+        method: "POST",
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_admission: admission }),
+      });
+      const profile = await rpcRes.json();
+      const guardians = Array.isArray(profile?.guardians) ? profile.guardians : [];
+      const allowed = new Set(
+        guardians
+          .map((g: { phone?: string }) => normalizePhone(g.phone ?? ""))
+          .filter(Boolean),
+      );
+      recipients = recipients.filter((r) => allowed.has(r));
+    } catch (e) {
+      console.error("Recipient validation failed", e);
+      return new Response(JSON.stringify({ error: "Could not validate recipients" }), {
+        status: 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+    if (!recipients.length) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "No recipient matched guardians on file for this admission (phones must match exactly).",
+        }),
+        { status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+      );
+    }
+  } else if (!recipients.length) {
+    return new Response(JSON.stringify({ error: "recipients[] is required" }), {
+      status: 400,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
   }
 
   // Twilio credentials (set via Supabase secrets).

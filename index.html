@@ -259,6 +259,9 @@ html[data-theme="dark"] .nav-right a.nav-icon-btn { background: rgba(15, 27, 51,
   font-family: 'Baloo 2', cursive;
   font-size: 0.96rem;
 }
+.parent-banner #parent-sign-out {
+  margin-left: auto;
+}
 
 /* Parent next-stop summary */
 .parent-next {
@@ -482,6 +485,15 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
   * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
 
+/* Parent privacy: no other students' names or class-wide stats */
+body.parent-privacy .bb-demo-only { display: none !important; }
+body.parent-privacy #role-bar { display: none !important; }
+body.parent-privacy .hcard.bb-parent-only { display: flex !important; }
+body:not(.parent-privacy) .hcard.bb-parent-only { display: none !important; }
+#route-timeline-parent { display: none; }
+body.parent-privacy #route-timeline-parent { display: block; }
+body.parent-privacy #route-timeline-demo { display: none; }
+
 /* Toast */
 .toast-wrap { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:300; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
 .toast { background:var(--navy); color:var(--bus-yellow); padding:12px 20px; border-radius:var(--r-sm); font-weight:700; font-size:0.88rem; box-shadow:0 6px 24px rgba(0,0,0,0.2); animation:toast-in 0.3s ease; }
@@ -490,6 +502,50 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
 /* Footer */
 .site-footer { margin-top:32px; padding:20px 24px; text-align:center; font-size:0.82rem; color:var(--text-soft); border-top:1px dashed var(--border); }
 .site-footer strong { color:var(--navy); }
+.site-footer a { color: var(--sky-dark); font-weight: 700; }
+
+/* Demo mode strip — sample data, not a signed-in parent */
+.demo-mode-banner {
+  position: relative;
+  z-index: 20;
+  background: linear-gradient(90deg, #FFF8E1, #FFECB3);
+  border-bottom: 2px dashed #F9A825;
+  padding: 10px 20px;
+}
+html[data-theme="dark"] .demo-mode-banner {
+  background: linear-gradient(90deg, #2a2410, #1a1608);
+  border-bottom-color: rgba(249, 168, 37, 0.6);
+}
+.demo-mode-inner {
+  max-width: 920px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--navy);
+  line-height: 1.45;
+}
+html[data-theme="dark"] .demo-mode-inner { color: #FFF8E1; }
+.demo-mode-inner p { margin: 0; flex: 1; }
+.demo-mode-dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: rgba(26, 35, 126, 0.12);
+  color: var(--navy);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: 'Quicksand', sans-serif;
+}
+html[data-theme="dark"] .demo-mode-dismiss {
+  background: rgba(255, 255, 255, 0.12);
+  color: #FFF8E1;
+}
+body.parent-privacy .demo-mode-banner { display: none !important; }
 </style>
 <script
   src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -527,11 +583,28 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
       <span class="notif-badge" id="notif-count">3</span>
     </button>
     <button class="nav-icon-btn" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme" style="flex-shrink:0;">🌙</button>
-    <div class="user-pill">👤 Mrs. Njeri ▾</div>
+    <div class="user-pill" id="nav-user-pill">👤 Mrs. Njeri ▾</div>
   </div>
 </nav>
 
-<div class="role-bar">
+<div
+  id="demo-mode-banner"
+  class="demo-mode-banner"
+  role="status"
+  hidden
+  aria-label="Demo sample data notice"
+>
+  <div class="demo-mode-inner">
+    <span aria-hidden="true">🎭</span>
+    <p>
+      <strong>Demo mode.</strong> Students, routes, and stats here are sample data only.
+      Use <strong>Continue as parent</strong> with a real admission number to see your child’s bus and alerts.
+    </p>
+    <button type="button" class="demo-mode-dismiss" onclick="dismissDemoBanner()">Dismiss</button>
+  </div>
+</div>
+
+<div class="role-bar" id="role-bar">
   <button class="role-tab active-parent" onclick="setRole(this,'parent')" aria-pressed="true">👪 Parent View</button>
   <button class="role-tab" onclick="setRole(this,'teacher')" aria-pressed="false">👩‍🏫 Teacher View</button>
   <button class="role-tab" onclick="setRole(this,'admin')" aria-pressed="false">🏫 Admin View</button>
@@ -582,6 +655,7 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
     Tracking <strong id="banner-student-name">Student</strong> on
     <strong id="banner-bus-label">Bus 07</strong> —
     <span id="banner-status">waiting at home for pick‑up</span>
+    <button type="button" class="login-skip" id="parent-sign-out" style="font-size:0.78rem;display:none;" onclick="parentSignOut()">Sign out</button>
   </div>
 
   <div class="parent-next" id="parent-next" style="display:none;">
@@ -608,9 +682,16 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
     <span class="sms-help">Multiple guardians can receive notifications.</span>
   </div>
 
-  <!-- HERO STAT CARDS -->
-  <div class="hero-cards">
-    <div class="hcard">
+  <!-- HERO STAT CARDS (parent mode: only your child + ETA; demo shows full bus stats) -->
+  <div class="hero-cards" id="hero-cards-root">
+    <div class="hcard bb-parent-only">
+      <div class="hcard-icon">🧒</div>
+      <div>
+        <div class="hcard-val" id="hero-child-first" style="font-size:1.5rem;">—</div>
+        <div class="hcard-label">Your child</div>
+      </div>
+    </div>
+    <div class="hcard bb-demo-only">
       <div class="hcard-icon">🧒</div>
       <div>
         <div class="hcard-val">16</div>
@@ -624,14 +705,14 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
         <div class="hcard-label">Next Stop ETA</div>
       </div>
     </div>
-    <div class="hcard">
+    <div class="hcard bb-demo-only">
       <div class="hcard-icon">✅</div>
       <div>
         <div class="hcard-val">8</div>
         <div class="hcard-label">Safely Dropped</div>
       </div>
     </div>
-    <div class="hcard">
+    <div class="hcard bb-demo-only">
       <div class="hcard-icon">⚠️</div>
       <div>
         <div class="hcard-val">1</div>
@@ -791,10 +872,11 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
       <div class="card">
         <div class="card-header">
           <span style="font-size:1.3rem">📍</span>
-          <span class="card-title">Route A — 6 Stops Today</span>
+          <span class="card-title" id="route-card-title">Route A — 6 Stops Today</span>
           <span style="margin-left:auto;font-size:0.78rem;font-weight:700;background:var(--green-light);color:var(--grass-dark);border-radius:20px;padding:3px 10px;">✅ On Schedule</span>
         </div>
-        <div class="route-timeline">
+        <div class="route-timeline" id="route-timeline-parent"></div>
+        <div class="route-timeline" id="route-timeline-demo">
 
           <div class="rt-item">
             <div class="rt-dot rt-done">✓</div>
@@ -889,12 +971,12 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
       <div class="card">
         <div class="card-header">
           <span style="font-size:1.3rem">🧒</span>
-          <span class="card-title">Students — Bus 07</span>
-          <span class="card-badge" style="background:var(--green-light);color:var(--grass-dark)">32 total</span>
+          <span class="card-title" id="student-card-title">Students — Bus 07</span>
+          <span class="card-badge bb-demo-only" style="background:var(--green-light);color:var(--grass-dark)">32 total</span>
         </div>
-        <div class="search-box">
+        <div class="search-box bb-demo-only">
           <span>🔍</span>
-          <input type="text" placeholder="Search student..." oninput="filterStudents(this.value)" aria-label="Search students by name">
+          <input type="text" id="student-search-input" placeholder="Search student..." oninput="filterStudents(this.value)" aria-label="Search students by name">
         </div>
         <div class="student-list-wrap" id="student-list"></div>
       </div>
@@ -908,7 +990,7 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
         </div>
         <div class="notif-list" id="notif-list"></div>
         <div class="notif-actions">
-          <button class="btn-full" onclick="fireNotif()">🔔 Simulate Arrival Alert</button>
+          <button class="btn-full" id="btn-simulate-notif" onclick="fireNotif()">🔔 Simulate Arrival Alert</button>
         </div>
       </div>
 
@@ -963,6 +1045,9 @@ html[data-theme="dark"] .map-wrap { background: #0A1A24; }
 
   <footer class="site-footer">
     <strong>BusBuddy</strong> — Safe rides, peace of mind. Track your child’s bus in real time.
+    <div style="margin-top:10px;">
+      <a href="driver.html">Driver login (share live location)</a>
+    </div>
   </footer>
 </div>
 
@@ -1088,6 +1173,8 @@ const parentSession = {
   },
   smsRecipients: [],
   guardians: [],
+  /** guest = overlay showing; demo = skip; parent = signed in with admission */
+  viewMode: 'guest',
 };
 
 const PHASES = {
@@ -1127,6 +1214,264 @@ function estimateEtaMin(distanceM, speedKmh) {
   return Math.max(1, Math.round(distanceM / mps / 60));
 }
 
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+const ADMISSION_LOGIN_MAX = 5;
+const ADMISSION_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const ADMISSION_LOCKOUT_MS = 15 * 60 * 1000;
+
+function getAdmissionLoginState() {
+  try {
+    const raw = sessionStorage.getItem('bb_admission_login');
+    if (!raw) return { fails: [], lockUntil: 0 };
+    const o = JSON.parse(raw);
+    return {
+      fails: Array.isArray(o.fails) ? o.fails : [],
+      lockUntil: typeof o.lockUntil === 'number' ? o.lockUntil : 0,
+    };
+  } catch (_) {
+    return { fails: [], lockUntil: 0 };
+  }
+}
+
+function saveAdmissionLoginState(s) {
+  try {
+    sessionStorage.setItem('bb_admission_login', JSON.stringify(s));
+  } catch (_) {}
+}
+
+function clearAdmissionLoginFailures() {
+  saveAdmissionLoginState({ fails: [], lockUntil: 0 });
+}
+
+function recordAdmissionFailure() {
+  const now = Date.now();
+  let s = getAdmissionLoginState();
+  if (s.lockUntil && now < s.lockUntil) return;
+  s.fails = (s.fails || []).filter((t) => now - t < ADMISSION_LOGIN_WINDOW_MS);
+  s.fails.push(now);
+  if (s.fails.length >= ADMISSION_LOGIN_MAX) {
+    s.lockUntil = now + ADMISSION_LOCKOUT_MS;
+    s.fails = [];
+  }
+  saveAdmissionLoginState(s);
+}
+
+function admissionLockoutMessage() {
+  const s = getAdmissionLoginState();
+  if (!s.lockUntil || Date.now() >= s.lockUntil) return null;
+  const mins = Math.ceil((s.lockUntil - Date.now()) / 60000);
+  return `Too many sign-in attempts. Please wait ${mins} minute(s) and try again.`;
+}
+
+function showDemoModeBanner() {
+  try {
+    if (sessionStorage.getItem('bb_hide_demo_strip') === '1') return;
+  } catch (_) {}
+  const el = document.getElementById('demo-mode-banner');
+  if (el) el.hidden = false;
+}
+
+function hideDemoModeBanner() {
+  const el = document.getElementById('demo-mode-banner');
+  if (el) el.hidden = true;
+}
+
+function dismissDemoBanner() {
+  try {
+    sessionStorage.setItem('bb_hide_demo_strip', '1');
+  } catch (_) {}
+  hideDemoModeBanner();
+}
+
+function applyParentPrivacyChrome(profile, admission) {
+  parentSession.viewMode = 'parent';
+  document.body.classList.add('parent-privacy');
+  hideDemoModeBanner();
+  try {
+    sessionStorage.removeItem('bb_demo_mode');
+    sessionStorage.removeItem('bb_parent_bus_id');
+    sessionStorage.setItem('bb_parent_admission', admission);
+    sessionStorage.setItem('bb_parent_student_name', profile.studentName || '');
+  } catch (_) {}
+
+  const first = (profile.studentName || 'Child').trim().split(/\s+/)[0] || 'Child';
+  const heroEl = document.getElementById('hero-child-first');
+  if (heroEl) heroEl.textContent = first;
+
+  const routeTitle = document.getElementById('route-card-title');
+  if (routeTitle) routeTitle.textContent = "Today’s route (your child only)";
+
+  const stTitle = document.getElementById('student-card-title');
+  if (stTitle) stTitle.textContent = 'Your child';
+
+  const pill = document.getElementById('nav-user-pill');
+  if (pill) pill.textContent = `👤 ${profile.parentName || 'Parent'} ▾`;
+
+  const signOut = document.getElementById('parent-sign-out');
+  if (signOut) signOut.style.display = 'inline';
+
+  const simBtn = document.getElementById('btn-simulate-notif');
+  if (simBtn) simBtn.textContent = '🔔 Test alert (your family only)';
+
+  renderParentRouteTimeline();
+  renderStudentsForMode();
+
+  notifs = [];
+  const nc = document.getElementById('notif-count');
+  if (nc) nc.textContent = '0';
+  renderNotifs();
+}
+
+function renderParentRouteTimeline() {
+  const el = document.getElementById('route-timeline-parent');
+  if (!el || !parentSession.studentName) return;
+  const first = escapeHtml((parentSession.studentName || '').trim().split(/\s+/)[0] || 'Your child');
+  const home = escapeHtml(parentSession.home?.name || 'Home stop');
+  const schoolName = escapeHtml(parentSession.school?.name || 'School');
+  el.innerHTML = `
+    <div class="rt-item">
+      <div class="rt-dot rt-done">✓</div>
+      <div class="rt-line"></div>
+      <div class="rt-content">
+        <div class="rt-name">Earlier stops</div>
+        <div class="rt-sub">Completed on this run · other students not shown</div>
+      </div>
+      <div class="rt-time done-t">—</div>
+    </div>
+    <div class="rt-item">
+      <div class="rt-dot rt-current">🚌</div>
+      <div class="rt-line"></div>
+      <div class="rt-content">
+        <div class="rt-name">${home}
+          <span style="font-size:0.68rem;background:var(--bus-yellow);color:var(--navy);border-radius:8px;padding:2px 7px;margin-left:5px;font-weight:800;">YOUR STOP</span>
+        </div>
+        <div class="rt-sub" style="color:var(--coral);font-weight:700">Where we meet your child on this run</div>
+        <div class="rt-chips">
+          <span class="chip chip-wait">⏳ ${first}</span>
+        </div>
+      </div>
+      <div class="rt-time eta">Live</div>
+    </div>
+    <div class="rt-item">
+      <div class="rt-dot rt-school">🏫</div>
+      <div class="rt-content">
+        <div class="rt-name" style="color:var(--text-soft)">${schoolName}</div>
+        <div class="rt-sub">School · arrival times vary</div>
+      </div>
+      <div class="rt-time">—</div>
+    </div>
+  `;
+}
+
+function renderStudentsForMode() {
+  const wrap = document.getElementById('student-list');
+  if (!wrap) return;
+  if (parentSession.viewMode !== 'parent' || !parentSession.studentName) {
+    renderStudents(students.filter(() => true));
+    return;
+  }
+  const initials = parentSession.studentName
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 3)
+    .toUpperCase();
+  const adm = escapeHtml(parentSession.admission || '');
+  const name = escapeHtml(parentSession.studentName);
+  wrap.innerHTML = `
+    <div class="student-row">
+      <div class="s-avatar" style="background:#14B8A6">${initials}</div>
+      <div><div class="s-name">${name}</div><div class="s-class">Admission ${adm}</div></div>
+      <div class="s-badge sb-wait">Your child</div>
+    </div>`;
+}
+
+function parentSignOut() {
+  try {
+    sessionStorage.removeItem('bb_parent_admission');
+    sessionStorage.removeItem('bb_parent_student_name');
+    sessionStorage.removeItem('bb_parent_bus_id');
+    sessionStorage.removeItem('bb_demo_mode');
+  } catch (_) {}
+  window.location.reload();
+}
+
+async function finishParentLoginFromProfile(profile, admission) {
+  const banner = document.getElementById('parent-banner');
+  const loginOverlay = document.getElementById('parent-login');
+  const nameSpan = document.getElementById('banner-student-name');
+  const busSpan = document.getElementById('banner-bus-label');
+  const navStatus = document.getElementById('nav-status-text');
+  const controls = document.getElementById('parent-controls');
+  const smsControls = document.getElementById('sms-controls');
+
+  parentSession.admission = admission;
+  parentSession.studentName = profile.studentName;
+  parentSession.parentName = profile.parentName;
+  parentSession.home = profile.home;
+  parentSession.school = SCHOOL;
+  parentSession.busId = null;
+  parentSession.last.atSchool = null;
+  parentSession.last.atHome = null;
+  parentSession.last.atTrip = null;
+  parentSession.timers.boardingStartedAt = null;
+  parentSession.timers.alightingStartedAt = null;
+  parentSession.guardians = Array.isArray(profile.guardians) ? profile.guardians.map((g) => ({ ...g })) : [];
+
+  applyParentPrivacyChrome(profile, admission);
+  clearAdmissionLoginFailures();
+
+  const busLabel = 'Select bus';
+  if (nameSpan) nameSpan.textContent = profile.studentName;
+  if (busSpan) busSpan.textContent = busLabel;
+  if (banner) banner.style.display = 'flex';
+  if (loginOverlay) loginOverlay.classList.add('hidden');
+  if (navStatus) {
+    navStatus.textContent = `Tracking ${profile.studentName} · Admission ${admission} · Select bus`;
+  }
+  if (controls) controls.style.display = 'flex';
+  if (smsControls) smsControls.style.display = 'flex';
+  renderSmsRecipients();
+  setRun('morning');
+  syncParentNextFromState();
+
+  if (profile.buses.length === 1) {
+    selectBus(profile.buses[0].busId);
+    const busSpan2 = document.getElementById('banner-bus-label');
+    if (busSpan2) busSpan2.textContent = profile.buses[0].busId === BUS_ID ? 'Bus 07' : profile.buses[0].busId;
+    if (navStatus) {
+      navStatus.textContent = `Tracking ${profile.studentName} · ${profile.home.name} · ${profile.buses[0].busId}`;
+    }
+  } else {
+    showBusSelect(profile.buses);
+    toast(`Signed in as parent. Select a bus for ${profile.studentName}.`);
+  }
+}
+
+async function restoreParentSession() {
+  let adm = null;
+  try {
+    adm = sessionStorage.getItem('bb_parent_admission');
+  } catch (_) {}
+  if (!adm) return false;
+  const profile = await loadParentProfileFromDb(adm) || PARENT_STUDENTS.find((p) => p.admission.toUpperCase() === adm.toUpperCase());
+  if (!profile || !profile.buses || profile.buses.length === 0) {
+    try {
+      sessionStorage.removeItem('bb_parent_admission');
+      sessionStorage.removeItem('bb_parent_student_name');
+      sessionStorage.removeItem('bb_parent_bus_id');
+    } catch (_) {}
+    return false;
+  }
+  await finishParentLoginFromProfile(profile, adm);
+  return true;
+}
+
 function showBusSelect(options) {
   const overlay = document.getElementById('bus-select');
   const list = document.getElementById('bus-select-list');
@@ -1145,6 +1490,11 @@ function closeBusSelect() {
 }
 function selectBus(busId) {
   parentSession.busId = busId;
+  if (parentSession.viewMode === 'parent') {
+    try {
+      sessionStorage.setItem('bb_parent_bus_id', busId);
+    } catch (_) {}
+  }
   closeBusSelect();
   bootstrapBusTracking(busId);
   const busSpan = document.getElementById('banner-bus-label');
@@ -1598,7 +1948,7 @@ async function loadParentProfileFromDb(admission) {
   }
 }
 
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   initTheme();
   const tbtn = document.getElementById('theme-toggle');
   if (tbtn) {
@@ -1608,7 +1958,21 @@ window.addEventListener('load', () => {
     });
   }
   initRealtimeMap();
-  bootstrapBusTracking(BUS_ID);
+
+  const restored = await restoreParentSession();
+  if (!restored) {
+    let mode = 'guest';
+    try {
+      if (sessionStorage.getItem('bb_demo_mode') === '1') mode = 'demo';
+    } catch (_) {}
+    parentSession.viewMode = mode;
+    renderStudents(students);
+    renderNotifs();
+    await bootstrapBusTracking(BUS_ID);
+    if (mode === 'demo') showDemoModeBanner();
+  } else if (!parentSession.busId) {
+    await bootstrapBusTracking(BUS_ID);
+  }
 
   const morningBtn = document.getElementById('run-morning');
   const eveningBtn = document.getElementById('run-evening');
@@ -1625,11 +1989,19 @@ async function handleParentLogin(event) {
   const input = document.getElementById('admission-input');
   const errorEl = document.getElementById('login-error');
   if (!input) return;
+
+  const lockMsg = admissionLockoutMessage();
+  if (lockMsg) {
+    if (errorEl) errorEl.textContent = lockMsg;
+    return;
+  }
+
   const raw = input.value.trim();
   const admission = raw.toUpperCase();
   const dbProfile = await loadParentProfileFromDb(admission);
   const profile = dbProfile || PARENT_STUDENTS.find((p) => p.admission.toUpperCase() === admission);
   if (!profile || !profile.buses || profile.buses.length === 0) {
+    recordAdmissionFailure();
     if (errorEl) {
       errorEl.textContent =
         'We could not find that admission number. Please check and try again.';
@@ -1638,55 +2010,18 @@ async function handleParentLogin(event) {
   }
   if (errorEl) errorEl.textContent = '';
 
-  const banner = document.getElementById('parent-banner');
-  const loginOverlay = document.getElementById('parent-login');
-  const nameSpan = document.getElementById('banner-student-name');
-  const busSpan = document.getElementById('banner-bus-label');
-  const navStatus = document.getElementById('nav-status-text');
-  const controls = document.getElementById('parent-controls');
-  const smsControls = document.getElementById('sms-controls');
-
-  parentSession.admission = admission;
-  parentSession.studentName = profile.studentName;
-  parentSession.parentName = profile.parentName;
-  parentSession.home = profile.home;
-  parentSession.school = SCHOOL;
-  parentSession.busId = null;
-  parentSession.last.atSchool = null;
-  parentSession.last.atHome = null;
-  parentSession.last.atTrip = null;
-  parentSession.timers.boardingStartedAt = null;
-  parentSession.timers.alightingStartedAt = null;
-  parentSession.guardians = Array.isArray(profile.guardians) ? profile.guardians.map((g) => ({ ...g })) : [];
-
-  const busLabel = 'Select bus';
-  if (nameSpan) nameSpan.textContent = profile.studentName;
-  if (busSpan) busSpan.textContent = busLabel;
-  if (banner) banner.style.display = 'flex';
-  if (loginOverlay) loginOverlay.classList.add('hidden');
-  if (navStatus) {
-    navStatus.textContent = `Tracking ${profile.studentName} · Admission ${admission} · Select bus`;
-  }
-  if (controls) controls.style.display = 'flex';
-  if (smsControls) smsControls.style.display = 'flex';
-  renderSmsRecipients();
-  setRun('morning');
-  syncParentNextFromState();
-
-  if (profile.buses.length === 1) {
-    selectBus(profile.buses[0].busId);
-    const busSpan2 = document.getElementById('banner-bus-label');
-    if (busSpan2) busSpan2.textContent = profile.buses[0].busId === BUS_ID ? 'Bus 07' : profile.buses[0].busId;
-    if (navStatus) navStatus.textContent = `Tracking ${profile.studentName} · ${profile.home.name} · ${profile.buses[0].busId}`;
-  } else {
-    showBusSelect(profile.buses);
-    toast(`Signed in as parent. Select a bus for ${profile.studentName}.`);
-  }
+  await finishParentLoginFromProfile(profile, admission);
 }
 
 function skipLogin() {
+  parentSession.viewMode = 'demo';
+  document.body.classList.remove('parent-privacy');
+  try {
+    sessionStorage.setItem('bb_demo_mode', '1');
+  } catch (_) {}
   const loginOverlay = document.getElementById('parent-login');
   if (loginOverlay) loginOverlay.classList.add('hidden');
+  showDemoModeBanner();
 }
 
 const students = [
@@ -1722,8 +2057,10 @@ function renderStudents(list) {
       <div class="s-badge ${stClass[s.st]}">${stLabel[s.st]}</div>
     </div>`).join('');
 }
-function filterStudents(q){renderStudents(students.filter(s=>s.n.toLowerCase().includes(q.toLowerCase())));}
-renderStudents(students);
+function filterStudents(q) {
+  if (parentSession.viewMode === 'parent') return;
+  renderStudents(students.filter((s) => s.n.toLowerCase().includes(q.toLowerCase())));
+}
 
 let notifs = [
   {c:"n-green", i:"✅", m:"Amara Kimani safely boarded at Maple Street.", t:"6:45 AM"},
@@ -1739,17 +2076,17 @@ function renderNotifs(){
       <div><div class="notif-msg">${n.m}</div><div class="notif-ts">${n.t}</div></div>
     </div>`).join('');
 }
-renderNotifs();
-function fireNotif(){
-  if (parentSession && parentSession.studentName) {
-    parentAddNotif('info', 'Simulated system alert (demo). Live geofence alerts will appear automatically.');
-    toast('Simulated alert added.');
+function fireNotif() {
+  if (parentSession.viewMode === 'parent' && parentSession.studentName) {
+    parentAddNotif('info', 'Test alert: only your selected SMS contacts receive messages.');
+    toast('Test alert added for your family.');
     return;
   }
-  notifs.unshift({c:"n-blue", i:"📍", m:"Simulated alert: bus update received.", t:"Just now"});
+  notifs.unshift({ c: 'n-blue', i: '📍', m: 'Simulated alert: bus update received.', t: 'Just now' });
   renderNotifs();
 }
 setInterval(()=>{
+  if (document.body.classList.contains('parent-privacy')) return;
   // Only run the demo simulator when there is no recent live update.
   if (Date.now() - lastLiveAt < 8000) return;
   const sp = Math.floor(30 + Math.random() * 16);
@@ -1764,7 +2101,8 @@ const roleStatus = {
   admin: 'All buses · Dashboard · 43industries'
 };
 function setRole(el, role) {
-  document.querySelectorAll('.role-tab').forEach(t => {
+  if (document.body.classList.contains('parent-privacy')) return;
+  document.querySelectorAll('.role-tab').forEach((t) => {
     t.className = 'role-tab';
     t.setAttribute('aria-pressed', 'false');
   });

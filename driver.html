@@ -171,10 +171,13 @@
 </head>
 <body>
   <div class="card">
-    <h1>Driver · Live Sharing <span>Bus 07</span></h1>
+    <h1>Driver · Live Sharing <span id="driver-bus-badge">Bus 07</span></h1>
     <p class="sub">
-      Log in, then tap <strong>Start sharing</strong> at the beginning of the route.
-      This will send your GPS position to BusBuddy for parents to see.
+      Log in with your <strong>school driver account</strong>, then tap <strong>Start sharing</strong> at the beginning of the route.
+      Your position is sent over HTTPS to BusBuddy only while sharing is on.
+    </p>
+    <p class="sub" id="driver-bus-hint" style="font-size:0.78rem;opacity:0.85;">
+      Bus assignment is set by your school (database). If it shows the wrong vehicle, contact the office before driving.
     </p>
 
     <div id="auth-block">
@@ -317,7 +320,12 @@
           setStatus('Warning', 'Could not send update, will retry on next position.');
         } else {
           const json = await res.json().catch(() => ({}));
-          setStatus('Sharing', `Last update at ${json.recorded_at || new Date().toISOString()}`);
+          const badge = document.getElementById('driver-bus-badge');
+          if (badge && json.bus_label) badge.textContent = json.bus_label;
+          else if (badge && json.bus_id) badge.textContent = json.bus_id.replace(/_/g, ' ');
+          const t = json.recorded_at || new Date().toISOString();
+          const busInfo = json.bus_label || json.bus_id || 'bus';
+          setStatus('Sharing', `Last update · ${busInfo} · ${t}`);
         }
       } catch (e) {
         console.error(e);

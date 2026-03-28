@@ -52,6 +52,17 @@
     }
     .tb-left span { font-size:1.7rem; }
     .tb-left em { color:#1D4ED8; font-style:normal; }
+    .parent-track-sub {
+      display:none;
+      font-family:'Quicksand',sans-serif;
+      font-size:0.72rem;
+      font-weight:700;
+      margin-top:3px;
+      opacity:0.92;
+      line-height:1.3;
+      max-width:min(420px,70vw);
+    }
+    .parent-track-sub strong { font-weight:800; }
     .tb-right {
       display:flex;
       align-items:center;
@@ -310,7 +321,12 @@
   <header class="top-bar">
     <div class="tb-left">
       <span>🚌</span>
-      Bus<em>Buddy</em>
+      <div>
+        <div>Bus<em>Buddy</em></div>
+        <div class="parent-track-sub" id="parent-track-line" aria-live="polite">
+          Tracking <strong id="parent-track-child"></strong>
+        </div>
+      </div>
     </div>
     <div class="tb-right">
       <div class="pill">
@@ -330,7 +346,7 @@
 
     <aside class="side">
       <section class="card">
-        <h2>Bus 07 · Nairobi Academy</h2>
+        <h2 id="track-card-title">Bus 07 · Nairobi Academy</h2>
         <div class="status-row">
           <div class="status-badge" id="status-pill">
             <span></span>
@@ -344,7 +360,7 @@
         <div class="meta-row">
           <div class="chip" id="chip-speed">Speed: —</div>
           <div class="chip" id="chip-eta">ETA: approx —</div>
-          <div class="chip">Route A · Morning Run</div>
+          <div class="chip" id="chip-route">Route A · Morning Run</div>
         </div>
         <div class="metrics">
           <div class="metric">
@@ -355,7 +371,7 @@
             <span>Distance to school</span>
             <strong id="metric-distance">—</strong>
           </div>
-          <div class="metric">
+          <div class="metric" id="metric-ontime-wrap">
             <span>On‑time score</span>
             <strong>98%</strong>
           </div>
@@ -403,9 +419,77 @@
     const SUPABASE_ANON_KEY = CFG.supabaseAnonKey || '';
     const BUS_ID = CFG.defaultBusId || 'bus_07';
 
+    let activeBusId = BUS_ID;
+    let parentChildName = null;
+    let parentAdmission = null;
+
     let supabaseClient = null;
     let map = null;
     let marker = null;
+
+    function formatBusLabel(busId) {
+      if (!busId) return 'Bus';
+      if (busId === 'bus_07' || busId === BUS_ID) return 'Bus 07';
+      return String(busId)
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    async function loadParentNameFromAdmission(admission) {
+      const client = initSupabase();
+      if (!client || !admission) return null;
+      try {
+        const { data, error } = await client.rpc('get_parent_profile', { p_admission: admission });
+        if (error || data == null) return null;
+        const profile = typeof data === 'string' ? JSON.parse(data) : data;
+        return profile && profile.studentName ? profile.studentName : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function initParentTrackContext() {
+      let adm = null;
+      let name = null;
+      let busId = null;
+      try {
+        adm = sessionStorage.getItem('bb_parent_admission');
+        name = sessionStorage.getItem('bb_parent_student_name');
+        busId = sessionStorage.getItem('bb_parent_bus_id');
+      } catch (_) {}
+      parentAdmission = adm;
+      if (busId) activeBusId = busId;
+      else activeBusId = BUS_ID;
+
+      if (adm && !name) {
+        name = await loadParentNameFromAdmission(adm);
+        if (name) {
+          try {
+            sessionStorage.setItem('bb_parent_student_name', name);
+          } catch (_) {}
+        }
+      }
+      parentChildName = name || null;
+
+      const line = document.getElementById('parent-track-line');
+      const childEl = document.getElementById('parent-track-child');
+      const cardTitle = document.getElementById('track-card-title');
+      const chipRoute = document.getElementById('chip-route');
+      const metricOntime = document.getElementById('metric-ontime-wrap');
+
+      if (name && adm) {
+        if (line) line.style.display = 'block';
+        if (childEl) childEl.textContent = `${name} · ${adm}`;
+        document.title = `BusBuddy · ${name}`;
+        if (cardTitle) cardTitle.textContent = `${formatBusLabel(activeBusId)} · ${name}`;
+        if (chipRoute) chipRoute.textContent = "Your child’s bus · live map";
+        if (metricOntime) metricOntime.style.display = 'none';
+      } else {
+        document.title = 'BusBuddy — Live Map';
+        if (cardTitle) cardTitle.textContent = `${formatBusLabel(activeBusId)} · Nairobi Academy`;
+        if (chipRoute) chipRoute.textContent = 'Route A · Morning Run';
+      }
+    }
 
     function toast(msg) {
       const wrap = document.getElementById('toast-wrap');
@@ -460,10 +544,14 @@
       initMap();
 
       const pos = [row.lat, row.lng];
+      const markerTitle = parentChildName
+        ? `${formatBusLabel(activeBusId)} · ${parentChildName}`
+        : formatBusLabel(activeBusId);
       if (!marker) {
-        marker = L.marker(pos, { title: 'Bus 07' }).addTo(map);
+        marker = L.marker(pos, { title: markerTitle }).addTo(map);
       } else {
         marker.setLatLng(pos);
+        if (marker.options) marker.options.title = markerTitle;
       }
       map.panTo(pos, { animate:true });
 
@@ -483,7 +571,13 @@
         const now = new Date();
         const diffMin = Math.round((now - recordedAt) / 60000);
         const freshness = diffMin <= 2 ? 'Live' : `Updated ${diffMin} min ago`;
-        if (statusTextMain) statusTextMain.textContent = `Bus 07 · ${freshness}`;
+        const busLbl = formatBusLabel(activeBusId);
+        const first = parentChildName ? parentChildName.trim().split(/\s+/)[0] : null;
+        if (statusTextMain) {
+          statusTextMain.textContent = first
+            ? `${busLbl} · ${freshness} · ${first}`
+            : `${busLbl} · ${freshness}`;
+        }
         if (lastUpdated) lastUpdated.textContent = recordedAt.toLocaleTimeString();
       }
       if (speed !== null) {
@@ -506,7 +600,12 @@
         }
       }
 
-      if (statusLabel) statusLabel.textContent = 'On route to school';
+      if (statusLabel) {
+        const nm = parentChildName ? parentChildName.trim().split(/\s+/)[0] : '';
+        statusLabel.textContent = nm
+          ? `Heading toward school · ${nm}'s run`
+          : 'On route to school';
+      }
       if (liveDotMain) {
         liveDotMain.style.background = '#22C55E';
         liveDotMain.style.boxShadow = '0 0 0 6px rgba(34,197,94,0.5)';
@@ -514,6 +613,7 @@
     }
 
     async function bootstrap() {
+      await initParentTrackContext();
       initMap();
       const client = initSupabase();
       if (!client) return;
@@ -522,7 +622,7 @@
         const { data, error } = await client
           .from('bus_state')
           .select('*')
-          .eq('bus_id', BUS_ID)
+          .eq('bus_id', activeBusId)
           .maybeSingle();
         if (!error && data) {
           updateUIFromState(data);
@@ -533,10 +633,10 @@
       }
 
       client
-        .channel('bus_state_live_map')
+        .channel(`bus_state_live_map_${activeBusId}`)
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'bus_state', filter: `bus_id=eq.${BUS_ID}` },
+          { event: '*', schema: 'public', table: 'bus_state', filter: `bus_id=eq.${activeBusId}` },
           (payload) => {
             const row = payload.new || payload.old;
             updateUIFromState(row);
