@@ -1,0 +1,12 @@
+{
+  "name": "busbuddy",
+  "private": true,
+  "description": "BusBuddy static app + Supabase backend",
+  "scripts": {
+    "lint": "node scripts/lint-static.mjs",
+    "test": "node --test test/migrations-security.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

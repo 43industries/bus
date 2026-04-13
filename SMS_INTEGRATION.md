@@ -20,12 +20,12 @@ To force a URL, replace `resolveSmsWebhookUrl()` / `SMS_WEBHOOK_URL` in the scri
 
 Function path:
 
-`supabase/functions/send-parent-sms/index.ts`
+`supabase/functions/send-parent-sms-v2/index.ts`
 
 Deploy:
 
 ```bash
-supabase functions deploy send-parent-sms
+supabase functions deploy send-parent-sms-v2
 ```
 
 ## 3) Configure secrets (Twilio)
@@ -75,8 +75,14 @@ Migration `20260324_rls_parent_profile_rpc.sql` enables RLS on student/guardian 
 
 ## 7) Security notes
 
-- Prefer calling this function with authenticated parent/session context.
-- Validate recipients against guardian records server-side (not only frontend).
-- Add rate limits per student and per guardian to prevent SMS abuse.
+- Require authenticated parent/session context (`Authorization: Bearer <access_token>`).
+- Recipients are validated server-side against `student_guardians` + `parent_accounts`; unauthorized numbers are ignored.
+- Rate limits are enforced per IP and per student using `public.sms_rate_limits`.
 - Log all sends (`student`, `bus`, `message`, `recipients`, `status`) for audit.
+
+### My Diary writes (`save_my_diary`)
+
+- Migration **`20260413_parent_accounts_diary_writes.sql`**: **`anon` cannot execute `save_my_diary`.**
+- **Parents** must be signed in and mapped in **`parent_accounts`** to a `guardian_id` that is linked to the student in **`student_guardians`**. See [`supabase/manual/insert_parent_account.sql`](supabase/manual/insert_parent_account.sql).
+- **Teachers** remain authorized via **`teacher_accounts`** and JWT, unchanged.
 

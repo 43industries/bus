@@ -316,6 +316,8 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js" defer></script>
   <script src="js/app-config.js"></script>
+  <script src="js/analytics.js" defer></script>
+  <script src="js/observability.js" defer></script>
 </head>
 <body>
   <header class="top-bar">
@@ -435,12 +437,55 @@
         .replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
+    function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function isRetryableError(error) {
+      const msg = String(error && error.message ? error.message : error || '').toLowerCase();
+      return msg.includes('network') || msg.includes('timeout') || msg.includes('fetch');
+    }
+
+    async function withRetry(task, opts = {}) {
+      const retries = typeof opts.retries === 'number' ? opts.retries : 2;
+      const baseDelayMs = typeof opts.baseDelayMs === 'number' ? opts.baseDelayMs : 350;
+      let lastErr = null;
+      for (let i = 0; i <= retries; i += 1) {
+        try {
+          return await task();
+        } catch (err) {
+          lastErr = err;
+          if (i === retries || !isRetryableError(err)) throw err;
+          await wait(baseDelayMs * (2 ** i));
+        }
+      }
+      throw lastErr || new Error('retry_failed');
+    }
+
+    async function resolveParentProfile(client, admission) {
+      const { data: authState } = await client.auth.getSession();
+      const hasSession = !!authState?.session?.access_token;
+      const rpcName = hasSession ? 'get_parent_profile_secure' : 'get_parent_profile_public';
+      const { data, error } = await client.rpc(rpcName, { p_admission: admission });
+      if (error || data == null) {
+        if (hasSession) {
+          const fallback = await client.rpc('get_parent_profile_public', { p_admission: admission });
+          if (!fallback.error && fallback.data != null) return fallback.data;
+        }
+        return null;
+      }
+      return data;
+    }
+
     async function loadParentNameFromAdmission(admission) {
       const client = initSupabase();
       if (!client || !admission) return null;
       try {
-        const { data, error } = await client.rpc('get_parent_profile', { p_admission: admission });
-        if (error || data == null) return null;
+        const data = await withRetry(
+          () => resolveParentProfile(client, admission),
+          { retries: 2, baseDelayMs: 300 }
+        );
+        if (data == null) return null;
         const profile = typeof data === 'string' ? JSON.parse(data) : data;
         return profile && profile.studentName ? profile.studentName : null;
       } catch (_) {
@@ -614,39 +659,75 @@
 
     async function bootstrap() {
       await initParentTrackContext();
+      if (window.BusBuddyAnalytics) {
+        window.BusBuddyAnalytics.track('map_session_start', {
+          busId: activeBusId,
+          parentContext: !!parentAdmission,
+        });
+      }
       initMap();
       const client = initSupabase();
       if (!client) return;
 
       try {
-        const { data, error } = await client
-          .from('bus_state')
-          .select('*')
-          .eq('bus_id', activeBusId)
-          .maybeSingle();
-        if (!error && data) {
-          updateUIFromState(data);
+        const initial = await withRetry(
+          () => client
+            .from('bus_state')
+            .select('*')
+            .eq('bus_id', activeBusId)
+            .maybeSingle(),
+          { retries: 2, baseDelayMs: 400 }
+        );
+        if (!initial.error && initial.data) {
+          updateUIFromState(initial.data);
         }
       } catch (e) {
         console.warn('Failed to load initial bus_state', e);
         toast('Could not load initial bus position.');
       }
 
-      client
-        .channel(`bus_state_live_map_${activeBusId}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'bus_state', filter: `bus_id=eq.${activeBusId}` },
-          (payload) => {
-            const row = payload.new || payload.old;
-            updateUIFromState(row);
-          }
-        )
-        .subscribe((status) => {
+      let liveChannel = null;
+      let reconnectTimer = null;
+
+      function scheduleReconnect() {
+        if (reconnectTimer) return;
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          subscribeLive();
+        }, 1200);
+      }
+
+      function subscribeLive() {
+        if (liveChannel) {
+          try { client.removeChannel(liveChannel); } catch (_) {}
+          liveChannel = null;
+        }
+        liveChannel = client
+          .channel(`bus_state_live_map_${activeBusId}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'bus_state', filter: `bus_id=eq.${activeBusId}` },
+            (payload) => {
+              const row = payload.new || payload.old;
+              updateUIFromState(row);
+            }
+          );
+        liveChannel.subscribe((status) => {
           if (status === 'SUBSCRIBED') {
             toast('Live updates connected.');
+            return;
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            toast('Reconnecting live updates…');
+            scheduleReconnect();
           }
         });
+      }
+
+      subscribeLive();
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) scheduleReconnect();
+      });
     }
 
     window.addEventListener('load', bootstrap);

@@ -1,27 +1,5 @@
--- Run in Supabase Dashboard → SQL (idempotent with IF NOT EXISTS / OR REPLACE).
--- My Diary: pupil info, guardians, next of kin, medical, weekly homework & comments.
-
-create table if not exists public.my_diary (
-  student_id uuid primary key references public.student_profiles (id) on delete cascade,
-  payload jsonb not null default '{}'::jsonb,
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists idx_my_diary_updated on public.my_diary (updated_at);
-
-comment on table public.my_diary is 'Per-student school diary JSON; updated via save_my_diary RPC only.';
-
-alter table public.my_diary enable row level security;
-
-create table if not exists public.teacher_accounts (
-  user_id uuid primary key references auth.users (id) on delete cascade,
-  display_name text,
-  created_at timestamptz not null default now()
-);
-
-comment on table public.teacher_accounts is 'Staff accounts: save_my_diary checks auth.uid() here.';
-
-alter table public.teacher_accounts enable row level security;
+-- Market readiness: parent diary writes require authenticated guardian linked via parent_accounts.
+-- Revokes anonymous execute on save_my_diary (admission-only writes were a privilege-escalation risk).
 
 create table if not exists public.parent_accounts (
   user_id uuid primary key references auth.users (id) on delete cascade,
@@ -34,47 +12,7 @@ comment on table public.parent_accounts is 'Maps Supabase Auth user to parent_gu
 
 alter table public.parent_accounts enable row level security;
 
-create or replace function public.get_my_diary (p_admission text)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = public
-as $$
-declare
-  sid uuid;
-  adm text;
-  pl jsonb;
-  sn text;
-begin
-  adm := upper(trim(p_admission));
-  if adm = '' or length(adm) > 64 then
-    return null;
-  end if;
-
-  select id, student_name into sid, sn
-  from public.student_profiles
-  where admission_no = adm and is_active;
-
-  if sid is null then
-    return null;
-  end if;
-
-  select payload into pl from public.my_diary where student_id = sid;
-  if pl is null then
-    pl := '{}'::jsonb;
-  end if;
-
-  return jsonb_build_object(
-    'admission', adm,
-    'studentName', sn,
-    'studentId', sid,
-    'payload', pl
-  );
-end;
-$$;
-
-grant execute on function public.get_my_diary (text) to anon, authenticated;
+-- No SELECT/INSERT policies for anon/authenticated: rows are managed via SQL (dashboard) or service_role.
 
 create or replace function public.save_my_diary (
   p_admission text,

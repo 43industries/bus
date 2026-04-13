@@ -168,6 +168,8 @@
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js" defer></script>
   <script src="js/app-config.js"></script>
+  <script src="js/analytics.js" defer></script>
+  <script src="js/observability.js" defer></script>
 </head>
 <body>
   <div class="card">
@@ -223,6 +225,31 @@
     let watchId = null;
     let isSharing = false;
 
+    function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function isRetryableError(error) {
+      const msg = String(error && error.message ? error.message : error || '').toLowerCase();
+      return msg.includes('network') || msg.includes('timeout') || msg.includes('fetch');
+    }
+
+    async function withRetry(task, opts = {}) {
+      const retries = typeof opts.retries === 'number' ? opts.retries : 1;
+      const baseDelayMs = typeof opts.baseDelayMs === 'number' ? opts.baseDelayMs : 350;
+      let lastErr = null;
+      for (let i = 0; i <= retries; i += 1) {
+        try {
+          return await task();
+        } catch (err) {
+          lastErr = err;
+          if (i === retries || !isRetryableError(err)) throw err;
+          await wait(baseDelayMs * (2 ** i));
+        }
+      }
+      throw lastErr || new Error('retry_failed');
+    }
+
     function initSupabase() {
       if (!window.supabase) {
         console.warn('Supabase not loaded.');
@@ -276,6 +303,9 @@
         setStatus('Error', error.message || 'Could not log in.');
         return;
       }
+      if (window.BusBuddyAnalytics) {
+        window.BusBuddyAnalytics.track('driver_login_ok', {});
+      }
       logoutBtn.disabled = false;
       startBtn.disabled = false;
       setStatus('Logged in', `Welcome ${data.user?.email || ''}. You can now start sharing.`);
@@ -302,7 +332,7 @@
         return;
       }
       try {
-        const res = await fetch(DRIVER_FUNCTION_URL, {
+        const res = await withRetry(() => fetch(DRIVER_FUNCTION_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -313,7 +343,7 @@
             lng,
             speed_kmh: speed || null,
           }),
-        });
+        }), { retries: 2, baseDelayMs: 300 });
         if (!res.ok) {
           const text = await res.text();
           console.error('Function error', res.status, text);
@@ -329,7 +359,11 @@
         }
       } catch (e) {
         console.error(e);
-        setStatus('Warning', 'Network error while sending location.');
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          setStatus('Warning', 'You are offline. Updates resume once internet returns.');
+          return;
+        }
+        setStatus('Warning', 'Temporary network issue while sending location.');
       }
     }
 
@@ -359,6 +393,9 @@
       );
       startBtn.disabled = true;
       stopBtn.disabled = false;
+      if (window.BusBuddyAnalytics) {
+        window.BusBuddyAnalytics.track('driver_sharing_start', {});
+      }
     }
 
     function stopSharing() {

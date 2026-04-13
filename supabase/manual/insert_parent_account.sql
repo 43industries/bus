@@ -1,0 +1,11 @@
+-- Link a Supabase Auth user to a guardian so they can call save_my_diary(..., 'parent').
+-- 1) Create the user in Dashboard → Authentication (e.g. phone/email magic link).
+-- 2) Find guardian_id from parent_guardians (phone or id).
+-- 3) Replace UUIDs below and run in SQL Editor.
+
+-- insert into public.parent_accounts (user_id, guardian_id)
+-- values (
+--   '00000000-0000-4000-8000-000000000001'::uuid,  -- auth.users.id
+--   '22222222-2222-4222-8222-222222222201'::uuid   -- parent_guardians.id
+-- )
+-- on conflict (user_id) do update set guardian_id = excluded.guardian_id;
