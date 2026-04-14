@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BusBuddy — Presentation</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bus-yellow: #FFD93D;
+  --navy: #1A237E;
+  --sky: #4FC3F7;
+  --sky-dark: #0288D1;
+  --green: #66BB6A;
+  --green-dark: #388E3C;
+  --coral: #FF7043;
+  --bg: #0F172A;
+  --card: #1E293B;
+  --text: #F1F5F9;
+  --muted: #94A3B8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Quicksand', sans-serif; }
+
+.deck { width: 100%; height: 100%; position: relative; }
+.slide {
+  position: absolute; inset: 0;
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 48px 64px;
+  text-align: center;
+  animation: fadeIn 0.35s ease;
+}
+.slide.active { display: flex; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+h1 {
+  font-family: 'Baloo 2', cursive;
+  font-size: 3.2rem;
+  font-weight: 800;
+  line-height: 1.15;
+  margin-bottom: 12px;
+}
+h1 em { color: var(--sky); font-style: normal; }
+h2 {
+  font-family: 'Baloo 2', cursive;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 18px;
+  color: var(--bus-yellow);
+}
+p, li {
+  font-size: 1.25rem;
+  line-height: 1.7;
+  color: var(--muted);
+  max-width: 800px;
+}
+p strong, li strong { color: var(--text); }
+ul { list-style: none; text-align: left; max-width: 780px; }
+ul li { padding: 8px 0; }
+ul li::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 14px; vertical-align: middle; }
+ul.green li::before { background: var(--green); }
+ul.yellow li::before { background: var(--bus-yellow); }
+ul.sky li::before { background: var(--sky); }
+ul.coral li::before { background: var(--coral); }
+
+.bus-icon { font-size: 5rem; margin-bottom: 10px; }
+.badge {
+  display: inline-block;
+  padding: 6px 18px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin: 6px 4px;
+}
+.b-yellow { background: var(--bus-yellow); color: var(--navy); }
+.b-green { background: var(--green); color: white; }
+.b-sky { background: var(--sky); color: var(--navy); }
+.b-coral { background: var(--coral); color: white; }
+.b-navy { background: var(--navy); color: var(--bus-yellow); border: 2px solid var(--bus-yellow); }
+
+.flow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 24px 0;
+}
+.flow-step {
+  background: var(--card);
+  border: 2px solid var(--muted);
+  border-radius: 16px;
+  padding: 14px 20px;
+  font-weight: 700;
+  font-size: 1rem;
+  min-width: 150px;
+  text-align: center;
+}
+.flow-step.highlight { border-color: var(--bus-yellow); background: rgba(255,217,61,0.1); color: var(--bus-yellow); }
+.flow-step.notify { border-color: var(--green); background: rgba(102,187,106,0.1); color: var(--green); }
+.flow-arrow { font-size: 1.6rem; color: var(--muted); padding: 0 6px; }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 900px; text-align: left; }
+.two-col .col { background: var(--card); border-radius: 18px; padding: 24px; border: 1px solid rgba(148,163,184,0.2); }
+.two-col .col h3 { font-family: 'Baloo 2', cursive; font-size: 1.2rem; margin-bottom: 10px; color: var(--bus-yellow); }
+
+.controls {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px; z-index: 100;
+  background: rgba(30,41,59,0.95); border-radius: 999px; padding: 8px 20px;
+  border: 1px solid rgba(148,163,184,0.3); box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+}
+.controls button {
+  border: none; background: none; color: var(--text); font-size: 1.4rem;
+  cursor: pointer; padding: 6px 10px; border-radius: 8px; transition: background 0.15s;
+}
+.controls button:hover { background: rgba(255,255,255,0.1); }
+.controls .counter { font-size: 0.85rem; font-weight: 700; color: var(--muted); min-width: 60px; text-align: center; }
+
+.slide-logo {
+  position: absolute; top: 24px; left: 32px;
+  font-family: 'Baloo 2', cursive; font-size: 1.2rem; font-weight: 800; color: var(--bus-yellow);
+  opacity: 0.7;
+}
+
+@media (max-width: 768px) {
+  .slide { padding: 32px 24px; }
+  h1 { font-size: 2.2rem; }
+  h2 { font-size: 1.5rem; }
+  p, li { font-size: 1rem; }
+  .flow-step { min-width: 110px; font-size: 0.85rem; padding: 10px 12px; }
+  .two-col { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1: Title -->
+  <div class="slide active">
+    <div class="bus-icon">🚌</div>
+    <h1>Bus<em>Buddy</em></h1>
+    <p><strong>Safe rides, peace of mind.</strong><br>Real-time school bus tracking, instant parent alerts, and fleet visibility — all in one platform.</p>
+    <div style="margin-top:24px;">
+      <span class="badge b-yellow">Live Tracking</span>
+      <span class="badge b-green">SMS + Push Alerts</span>
+      <span class="badge b-sky">Fleet Dashboard</span>
+    </div>
+  </div>
+
+  <!-- SLIDE 2: The Problem -->
+  <div class="slide">
+    <div class="slide-logo">BusBuddy</div>
+    <h2>The Problem</h2>
+    <ul class="coral">
+      <li><strong>Parents wait blindly</strong> — no idea when the bus left school or where it is.</li>
+      <li><strong>Schools field constant calls</strong> — "Has the bus left?" "Where is it now?"</li>
+      <li><strong>Fleet managers lack visibility</strong> — no real-time view of all buses.</li>
+      <li><strong>No delivery confirmation</strong> — no proof the child was dropped off safely.</li>
+    </ul>
+  </div>
+
+  <!-- SLIDE 3: The Solution -->
+  <div class="slide">
+    <div class="slide-logo">BusBuddy</div>
+    <h2>The BusBuddy Solution</h2>
+    <ul class="green">
+      <li><strong>One simple loop:</strong> School → Home → School, tracked end-to-end.</li>
+      <li><strong>Parents notified automatically</strong> when the bus leaves school and arrives at the home stop.</li>
+      <li><strong>Live map</strong> for parents and fleet managers — see the bus in real time.</li>
+      <li><strong>Complete audit trail</strong> — every event logged, every SMS tracked.</li>
+    </ul>
+  </div>
+
+  <!-- SLIDE 4: The Trip Loop -->
+  <div class="slide">
+    <div class="slide-logo">BusBuddy</div>
+    <h2>The Trip Lifecycle</h2>
+    <div class="flow">
+      <div class="flow-step highlight">🏫 Left School</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">🚌 En Route Home</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step highlight">🏠 Arrived Home</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">↩ Left Home Area</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">🔙 Returning</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step notify">✅ At School</div>
+    </div>
+    <p style="margin-top:18px;">
+      <span class="badge b-green">SMS + Push</span> sent on <strong>Left School</strong> and <strong>Arrived Home</strong> — the two moments parents care about most.
+    </p>
+  </div>
+
+  <!-- SLIDE 5: Parent Experience -->
+  <div class="slide">
+    <div class="slide-logo">BusBuddy</div>
+    <h2>Parent Experience</h2>
+    <div class="two-col">
+      <div class="col">
+        <h3>🔔 Automatic Alerts</h3>
+        <p>Two notifications per trip — SMS and in-app push. No action required from parents.</p>
+        <p style="margin-top:8px;"><strong>"Bus 07 has left school and is on the way home."</strong></p>
+        <p><strong>"Bus 07 has arrived at the home stop."</strong></p>
+      </div>
+      <div class="col">
+        <h3>🗺️ Live Map Tracking</h3>
+        <p>Real-time bus position from departure to arrival. GPS stale detection shows <strong>"last seen"</strong> if signal drops — no false positions.</p>
+        <p style="margin-top:8px;">Works on any phone browser. No app install needed.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: Driver Experience -->
+  <div class="slide">
+    <div class="slide-logo">BusBuddy</div>
+    <h2>Driver Experience</h2>
+    <div class="two-col">
+      <div class="col">
+        <h3>📍 One-Tap Location Sharing</h3>
+        <p>Driver logs in, taps <strong>Start Sharing</strong>, and GPS streams automatically. No extra hardware.</p>
+      </div>
+      <div class="col">
+        <h3>🏫 Trip Status Buttons</h3>
+        <p>Six simple buttons to advance the trip. Each tap updates parents and fleet in real time. Status can only move <strong>forward</strong> — no mistakes.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: Fleet / Admin -->
+  <div class="slide">
+    <div class="slide-logo">BusBuddy</div>
+    <h2>Fleet Manager / School Admin</h2>
+    <ul class="sky">
+      <li><strong>Full-loop visibility</strong> — see every bus from school departure to return.</li>
+      <li><strong>Trip event log</strong> — every status change timestamped with GPS coordinates.</li>
+      <li><strong>Notification audit</strong> — know which SMS was sent, delivered, or failed.</li>
+      <li><strong>Teacher accounts</strong> can also trigger trip events if needed.</li>
+    </ul>
+  </div>
+
+  <!-- SLIDE 8: Safety & Reliability -->
+  <div class="slide">
+    <div class="slide-logo">BusBuddy</div>
+    <h2>Safety & Reliability</h2>
+    <ul class="yellow">
+      <li><strong>No duplicate notifications</strong> — unique constraint prevents repeat SMS for the same event.</li>
+      <li><strong>Forward-only status</strong> — trip can only progress, never go backwards.</li>
+      <li><strong>GPS stale detection</strong> — orange "last seen" indicator if data is older than 2 minutes.</li>
+      <li><strong>Full audit trail</strong> — trip_events + notification_log for compliance and accountability.</li>
+      <li><strong>Row-level security</strong> — every table locked down; notification logs are service-role only.</li>
+    </ul>
+  </div>
+
+  <!-- SLIDE 9: Tech Stack -->
+  <div class="slide">
+    <div class="slide-logo">BusBuddy</div>
+    <h2>Built on Modern Infrastructure</h2>
+    <div class="two-col">
+      <div class="col">
+        <h3>Frontend</h3>
+        <p><strong>Static HTML/JS</strong> — no framework overhead. Works on any device. Leaflet maps. Hosted on <strong>Vercel</strong>.</p>
+      </div>
+      <div class="col">
+        <h3>Backend</h3>
+        <p><strong>Supabase</strong> — Postgres 17, Realtime subscriptions, Edge Functions (Deno), Row-Level Security. <strong>Twilio</strong> for SMS.</p>
+      </div>
+    </div>
+    <div style="margin-top:20px;">
+      <span class="badge b-navy">Zero server management</span>
+      <span class="badge b-navy">Scales automatically</span>
+      <span class="badge b-navy">Works offline-tolerant</span>
+    </div>
+  </div>
+
+  <!-- SLIDE 10: Call to Action -->
+  <div class="slide">
+    <div class="bus-icon">🚌</div>
+    <h1>Bus<em>Buddy</em></h1>
+    <h2 style="color:var(--text);">Safe rides, peace of mind.</h2>
+    <p style="margin-top:12px;font-size:1.3rem;color:var(--text);">
+      <strong>Ready to see it live?</strong>
+    </p>
+    <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+      <a href="index.html" class="badge b-yellow" style="text-decoration:none;font-size:1rem;padding:10px 24px;">Open Demo Dashboard</a>
+      <a href="track.html" class="badge b-sky" style="text-decoration:none;font-size:1rem;padding:10px 24px;">Open Live Map</a>
+      <a href="driver.html" class="badge b-green" style="text-decoration:none;font-size:1rem;padding:10px 24px;">Open Driver Page</a>
+    </div>
+    <p style="margin-top:28px;font-size:0.95rem;">Built by <strong>43industries</strong></p>
+  </div>
+
+</div>
+
+<div class="controls">
+  <button id="prev-btn" aria-label="Previous slide">◀</button>
+  <div class="counter" id="counter">1 / 10</div>
+  <button id="next-btn" aria-label="Next slide">▶</button>
+</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const counter = document.getElementById('counter');
+let current = 0;
+
+function show(idx) {
+  current = Math.max(0, Math.min(slides.length - 1, idx));
+  slides.forEach((s, i) => s.classList.toggle('active', i === current));
+  counter.textContent = `${current + 1} / ${slides.length}`;
+}
+
+document.getElementById('prev-btn').addEventListener('click', () => show(current - 1));
+document.getElementById('next-btn').addEventListener('click', () => show(current + 1));
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); show(current + 1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); show(current - 1); }
+  if (e.key === 'Home') { e.preventDefault(); show(0); }
+  if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+});
+
+let touchStartX = 0;
+document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+document.addEventListener('touchend', (e) => {
+  const diff = e.changedTouches[0].clientX - touchStartX;
+  if (Math.abs(diff) > 50) show(current + (diff < 0 ? 1 : -1));
+});
+</script>
+</body>
+</html>
