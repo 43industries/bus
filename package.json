@@ -4,7 +4,8 @@
   "description": "BusBuddy static app + Supabase backend",
   "scripts": {
     "lint": "node scripts/lint-static.mjs",
-    "test": "node --test test/migrations-security.test.mjs"
+    "test": "node --test test/migrations-security.test.mjs",
+    "preflight": "node scripts/preflight.mjs"
   },
   "engines": {
     "node": ">=18"

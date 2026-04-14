@@ -20,7 +20,7 @@ supabase db push
 
 Write-Host "Deploying Edge Functions..." -ForegroundColor Cyan
 supabase functions deploy driver-location
-supabase functions deploy send-parent-sms
+supabase functions deploy send-parent-sms-v2
 
 Write-Host "Done. Apply optional SQL from supabase/remote_apply_my_diary.sql in Dashboard if not using db push." -ForegroundColor DarkGray
 Write-Host "Set secrets in Dashboard or: supabase secrets set KEY=value" -ForegroundColor Green

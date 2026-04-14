@@ -5,6 +5,7 @@ Use before marketing launch or first paid school.
 ## Technical gate
 
 - [ ] CI green: Gitleaks + `npm run lint` + `npm test` on `main`.
+- [ ] `npm run preflight` passes (function names, required files, config keys).
 - [ ] Production migrations applied; `save_my_diary` **not** granted to `anon`.
 - [ ] Smoke test: driver share → map updates; SMS test send OK.
 - [ ] Backup / restore drill completed this quarter ([`BACKUP_RESTORE.md`](BACKUP_RESTORE.md)).

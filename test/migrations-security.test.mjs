@@ -15,13 +15,13 @@ const profileSplitMigration = join(
   root,
   'supabase',
   'migrations',
-  '20260413_parent_profile_auth_split.sql'
+  '20260414_parent_profile_auth_split.sql'
 );
 const smsLimitMigration = join(
   root,
   'supabase',
   'migrations',
-  '20260413_sms_rate_limits.sql'
+  '20260415_sms_rate_limits.sql'
 );
 
 test('save_my_diary migration revokes anon and grants authenticated only', () => {
