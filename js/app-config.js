@@ -12,6 +12,8 @@
     driverLocationFunctionUrl: 'https://shsgyoeuponjemicmyvd.functions.supabase.co/driver-location',
     /** Parent SMS function endpoint (optional). */
     smsFunctionUrl: 'https://shsgyoeuponjemicmyvd.functions.supabase.co/send-parent-sms-v2',
+    /** Trip events function (start trip, update status, triggers notifications). */
+    tripEventsFunctionUrl: 'https://shsgyoeuponjemicmyvd.functions.supabase.co/trip-events',
     /** Optional: POST funnel events (see docs/ANALYTICS.md). */
     analyticsEndpoint: '',
     /** Optional: Sentry browser DSN (see docs/MONITORING.md). */

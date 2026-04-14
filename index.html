@@ -571,7 +571,7 @@ body.parent-privacy .demo-mode-banner { display: none !important; }
   </div>
   <div class="nav-center" id="nav-status">
     <div class="live-pulse"></div>
-    <span id="nav-status-text">Bus 07 is LIVE · Route A · Morning Run</span>
+    <span id="nav-status-text">Bus 07 is LIVE · School → Home → School</span>
   </div>
   <div class="nav-right">
     <a href="track.html" class="nav-icon-btn" style="text-decoration:none; border-radius:999px; width:auto; padding:0 14px; gap:6px; font-size:0.82rem; font-weight:700; background:white;" aria-label="Open full live map">
@@ -872,8 +872,8 @@ body.parent-privacy .demo-mode-banner { display: none !important; }
       <div class="card">
         <div class="card-header">
           <span style="font-size:1.3rem">📍</span>
-          <span class="card-title" id="route-card-title">Route A — 6 Stops Today</span>
-          <span style="margin-left:auto;font-size:0.78rem;font-weight:700;background:var(--green-light);color:var(--grass-dark);border-radius:20px;padding:3px 10px;">✅ On Schedule</span>
+          <span class="card-title" id="route-card-title">Trip Status — School → Home → School</span>
+          <span id="trip-badge" style="margin-left:auto;font-size:0.78rem;font-weight:700;background:var(--green-light);color:var(--grass-dark);border-radius:20px;padding:3px 10px;">✅ On Schedule</span>
         </div>
         <div class="route-timeline" id="route-timeline-parent"></div>
         <div class="route-timeline" id="route-timeline-demo">
@@ -1100,6 +1100,18 @@ let lastLiveAt = 0;
 const GEOFENCE_RADIUS_M = 180;
 const SCHOOL = { name: 'Nairobi Academy — School Gate', lat: -1.28725, lng: 36.81855 };
 const TRIP_DEST = { name: 'National Museum', lat: -1.27735, lng: 36.81305 };
+
+const TRIP_STATUS_LABELS = {
+  LEFT_SCHOOL: 'Bus has left school',
+  EN_ROUTE_TO_HOME: 'On the way home',
+  ARRIVED_HOME_STOP: 'Arrived at home stop',
+  LEFT_HOME_AREA: 'Left home area',
+  RETURNING_TO_SCHOOL: 'Returning to school',
+  ARRIVED_SCHOOL: 'Arrived back at school',
+};
+const TRIP_NOTIFY_STATUSES = new Set(['LEFT_SCHOOL', 'ARRIVED_HOME_STOP']);
+let currentTripStatus = null;
+let tripEventsChannel = null;
 
 // One admission can have multiple bus options (e.g., morning on Bus 07, evening on Van 03).
 const PARENT_STUDENTS = [
@@ -1640,6 +1652,47 @@ async function sendSmsNotification(message) {
   }
 }
 
+function handleTripStatusChange(status) {
+  currentTripStatus = status;
+  const label = TRIP_STATUS_LABELS[status];
+  if (!label) return;
+
+  const bannerStatus = document.getElementById('banner-status');
+  if (bannerStatus) bannerStatus.textContent = label;
+
+  const navStatus = document.getElementById('nav-status-text');
+  if (navStatus && parentSession.studentName) {
+    const busLabel = parentSession.busId === BUS_ID ? 'Bus 07' : (parentSession.busId || 'Bus');
+    navStatus.textContent = `${parentSession.studentName} · ${busLabel} · ${label}`;
+  } else if (navStatus) {
+    navStatus.textContent = `Bus 07 · ${label}`;
+  }
+
+  const tripBadge = document.getElementById('trip-badge');
+  if (tripBadge) {
+    if (status === 'ARRIVED_SCHOOL') {
+      tripBadge.textContent = '✅ Trip Complete';
+      tripBadge.style.background = 'var(--green-light)';
+      tripBadge.style.color = 'var(--grass-dark)';
+    } else if (status === 'ARRIVED_HOME_STOP') {
+      tripBadge.textContent = '🏠 At Home Stop';
+      tripBadge.style.background = '#FFF8E1';
+      tripBadge.style.color = '#F57F17';
+    } else {
+      tripBadge.textContent = '● ' + label;
+      tripBadge.style.background = 'var(--mint-light)';
+      tripBadge.style.color = 'var(--mint)';
+    }
+  }
+
+  if (TRIP_NOTIFY_STATUSES.has(status)) {
+    const kind = status === 'ARRIVED_HOME_STOP' ? 'good' : 'info';
+    parentAddNotif(kind, label + '.');
+  } else {
+    toast(label);
+  }
+}
+
 function parentAddNotif(kind, message, ts = new Date()) {
   const t = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const row = {
@@ -1885,6 +1938,46 @@ async function bootstrapBusTracking(busId) {
       },
     )
     .subscribe();
+
+  // Subscribe to trip events for live status updates
+  if (tripEventsChannel) {
+    try { client.removeChannel(tripEventsChannel); } catch (_) {}
+  }
+
+  // Load current active trip status
+  try {
+    const { data: activeTrip } = await client
+      .from('trips')
+      .select('id,current_status')
+      .eq('bus_id', activeBusId)
+      .is('completed_at', null)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (activeTrip) handleTripStatusChange(activeTrip.current_status);
+  } catch (_) {}
+
+  tripEventsChannel = client
+    .channel(`trip_events_dash_${activeBusId}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'trip_events' },
+      async (payload) => {
+        const evt = payload.new;
+        if (!evt || !evt.trip_id) return;
+        try {
+          const { data: trip } = await client
+            .from('trips')
+            .select('bus_id')
+            .eq('id', evt.trip_id)
+            .maybeSingle();
+          if (trip && trip.bus_id === activeBusId) {
+            handleTripStatusChange(evt.status);
+          }
+        } catch (_) {}
+      },
+    )
+    .subscribe();
 }
 
 async function loadDiaryFromDb() {
@@ -2063,11 +2156,12 @@ function filterStudents(q) {
 }
 
 let notifs = [
+  {c:"n-blue",  i:"🏫", m:"Bus 07 has left school and is on the way home.", t:"3:15 PM"},
   {c:"n-green", i:"✅", m:"Amara Kimani safely boarded at Maple Street.", t:"6:45 AM"},
   {c:"n-red",   i:"⚠️", m:"David Mwenda is marked absent today.", t:"6:46 AM"},
-  {c:"n-green", i:"✅", m:"Lena Wanjiku boarded at Riverside Flats.", t:"7:00 AM"},
+  {c:"n-green", i:"🏠", m:"Bus 07 has arrived at the home stop.", t:"3:42 PM"},
   {c:"n-blue",  i:"📍", m:"Bus 07 approaching Westlands — ETA 4 min.", t:"7:24 AM"},
-  {c:"n-green", i:"🚌", m:"Bus 07 departed Garden Estate on schedule.", t:"7:16 AM"},
+  {c:"n-green", i:"🚌", m:"Bus 07 returned to school. Trip complete.", t:"4:10 PM"},
 ];
 function renderNotifs(){
   document.getElementById('notif-list').innerHTML=notifs.slice(0,6).map(n=>`
@@ -2096,9 +2190,9 @@ setInterval(()=>{
   if (mapSpeed) mapSpeed.textContent = sp + ' km/h';
 },3500);
 const roleStatus = {
-  parent: 'Bus 07 is LIVE · Route A · Morning Run',
-  teacher: 'Bus 07 · Route A · Class overview',
-  admin: 'All buses · Dashboard · 43industries'
+  parent: 'Bus 07 is LIVE · School → Home → School',
+  teacher: 'Bus 07 · Fleet tracking · All statuses',
+  admin: 'All buses · Fleet dashboard · 43industries'
 };
 function setRole(el, role) {
   if (document.body.classList.contains('parent-privacy')) return;

@@ -200,6 +200,19 @@
       <button class="btn-secondary" id="stop-btn" disabled>⏸ Stop</button>
     </div>
 
+    <div id="trip-controls" style="margin-top:12px;display:none;">
+      <label style="margin-bottom:6px;">Trip status</label>
+      <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:0;">
+        <button class="btn-primary" id="trip-start-btn" style="flex:1 1 45%;" disabled>🏫 Left school</button>
+        <button class="btn-secondary" id="trip-enroute-btn" style="flex:1 1 45%;" disabled>🚌 En route home</button>
+        <button class="btn-secondary" id="trip-arrived-btn" style="flex:1 1 45%;" disabled>🏠 Arrived home stop</button>
+        <button class="btn-secondary" id="trip-lefthome-btn" style="flex:1 1 45%;" disabled>↩ Left home area</button>
+        <button class="btn-secondary" id="trip-returning-btn" style="flex:1 1 45%;" disabled>🔙 Returning to school</button>
+        <button class="btn-secondary" id="trip-arrived-school-btn" style="flex:1 1 45%;" disabled>✅ Arrived at school</button>
+      </div>
+      <div id="trip-status-line" style="margin-top:6px;font-size:0.78rem;color:var(--muted);">No active trip.</div>
+    </div>
+
     <div class="status" id="status-box">
       <div><strong>Status:</strong> Not logged in</div>
       <div class="status-line" id="status-line">Please log in with your driver account.</div>
@@ -220,10 +233,14 @@
     const SUPABASE_URL = CFG.supabaseUrl || '';
     const SUPABASE_ANON_KEY = CFG.supabaseAnonKey || '';
     const DRIVER_FUNCTION_URL = CFG.driverLocationFunctionUrl || '';
+    const TRIP_EVENTS_URL = CFG.tripEventsFunctionUrl || '';
 
     let supabaseClient = null;
     let watchId = null;
     let isSharing = false;
+    let activeTripId = null;
+    let lastKnownLat = null;
+    let lastKnownLng = null;
 
     function wait(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -322,6 +339,8 @@
     }
 
     async function sendLocation(lat, lng, speed) {
+      lastKnownLat = lat;
+      lastKnownLng = lng;
       const client = initSupabase();
       if (!client) return;
       const { data: sessionData } = await client.auth.getSession();
@@ -408,6 +427,90 @@
       stopBtn.disabled = true;
     }
 
+    // --- Trip lifecycle controls ---
+    const TRIP_STATUSES = [
+      'LEFT_SCHOOL', 'EN_ROUTE_TO_HOME', 'ARRIVED_HOME_STOP',
+      'LEFT_HOME_AREA', 'RETURNING_TO_SCHOOL', 'ARRIVED_SCHOOL'
+    ];
+    const tripBtns = {
+      LEFT_SCHOOL: document.getElementById('trip-start-btn'),
+      EN_ROUTE_TO_HOME: document.getElementById('trip-enroute-btn'),
+      ARRIVED_HOME_STOP: document.getElementById('trip-arrived-btn'),
+      LEFT_HOME_AREA: document.getElementById('trip-lefthome-btn'),
+      RETURNING_TO_SCHOOL: document.getElementById('trip-returning-btn'),
+      ARRIVED_SCHOOL: document.getElementById('trip-arrived-school-btn'),
+    };
+    const tripControls = document.getElementById('trip-controls');
+    const tripStatusLine = document.getElementById('trip-status-line');
+
+    function showTripControls() {
+      if (tripControls) tripControls.style.display = 'block';
+    }
+
+    function enableTripButton(status) {
+      Object.values(tripBtns).forEach(b => { if (b) b.disabled = true; });
+      const idx = TRIP_STATUSES.indexOf(status);
+      if (idx === -1) {
+        // No active trip — enable "Left school" to start a new one
+        if (tripBtns.LEFT_SCHOOL) tripBtns.LEFT_SCHOOL.disabled = false;
+        return;
+      }
+      // Enable the next status button
+      const nextIdx = idx + 1;
+      if (nextIdx < TRIP_STATUSES.length) {
+        const nextStatus = TRIP_STATUSES[nextIdx];
+        if (tripBtns[nextStatus]) tripBtns[nextStatus].disabled = false;
+      }
+    }
+
+    function setTripLine(text) {
+      if (tripStatusLine) tripStatusLine.textContent = text;
+    }
+
+    async function getAuthToken() {
+      const client = initSupabase();
+      if (!client) return null;
+      const { data } = await client.auth.getSession();
+      return data.session?.access_token || null;
+    }
+
+    async function callTripEvent(action, status) {
+      const token = await getAuthToken();
+      if (!token) { setTripLine('Not logged in.'); return; }
+      const payload = { action, lat: lastKnownLat, lng: lastKnownLng };
+      if (status) payload.status = status;
+      try {
+        const res = await withRetry(() => fetch(TRIP_EVENTS_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        }), { retries: 1, baseDelayMs: 400 });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setTripLine(`Error: ${data.error || res.status}`);
+          return;
+        }
+        activeTripId = data.trip_id || activeTripId;
+        const current = status || 'LEFT_SCHOOL';
+        enableTripButton(current);
+        const label = current.replace(/_/g, ' ').toLowerCase();
+        const notifInfo = data.notifications
+          ? ` · ${data.notifications.sent} SMS sent`
+          : '';
+        setTripLine(`Trip active · ${label}${notifInfo}`);
+        if (current === 'ARRIVED_SCHOOL') {
+          activeTripId = null;
+          setTripLine('Trip complete. Start a new one when ready.');
+          enableTripButton(null);
+        }
+      } catch (err) {
+        setTripLine('Network error sending trip update.');
+      }
+    }
+
     loginBtn.addEventListener('click', (e) => {
       e.preventDefault();
       handleLogin();
@@ -419,11 +522,21 @@
     startBtn.addEventListener('click', (e) => {
       e.preventDefault();
       startSharing();
+      showTripControls();
+      enableTripButton(null);
     });
     stopBtn.addEventListener('click', (e) => {
       e.preventDefault();
       stopSharing();
     });
+
+    // Trip button handlers
+    tripBtns.LEFT_SCHOOL.addEventListener('click', () => callTripEvent('start_trip'));
+    tripBtns.EN_ROUTE_TO_HOME.addEventListener('click', () => callTripEvent('update_status', 'EN_ROUTE_TO_HOME'));
+    tripBtns.ARRIVED_HOME_STOP.addEventListener('click', () => callTripEvent('update_status', 'ARRIVED_HOME_STOP'));
+    tripBtns.LEFT_HOME_AREA.addEventListener('click', () => callTripEvent('update_status', 'LEFT_HOME_AREA'));
+    tripBtns.RETURNING_TO_SCHOOL.addEventListener('click', () => callTripEvent('update_status', 'RETURNING_TO_SCHOOL'));
+    tripBtns.ARRIVED_SCHOOL.addEventListener('click', () => callTripEvent('update_status', 'ARRIVED_SCHOOL'));
   </script>
 </body>
 </html>

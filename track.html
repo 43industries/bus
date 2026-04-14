@@ -421,13 +421,25 @@
     const SUPABASE_ANON_KEY = CFG.supabaseAnonKey || '';
     const BUS_ID = CFG.defaultBusId || 'bus_07';
 
+    const TRIP_STATUS_LABELS = {
+      LEFT_SCHOOL: 'Bus has left school',
+      EN_ROUTE_TO_HOME: 'On the way home',
+      ARRIVED_HOME_STOP: 'Arrived at home stop',
+      LEFT_HOME_AREA: 'Left home area',
+      RETURNING_TO_SCHOOL: 'Returning to school',
+      ARRIVED_SCHOOL: 'Arrived back at school',
+    };
+    const GPS_STALE_THRESHOLD_MS = 2 * 60 * 1000;
+
     let activeBusId = BUS_ID;
     let parentChildName = null;
     let parentAdmission = null;
+    let currentTripStatus = null;
 
     let supabaseClient = null;
     let map = null;
     let marker = null;
+    let lastRecordedAt = null;
 
     function formatBusLabel(busId) {
       if (!busId) return 'Bus';
@@ -601,6 +613,7 @@
       map.panTo(pos, { animate:true });
 
       const recordedAt = row.recorded_at ? new Date(row.recorded_at) : null;
+      lastRecordedAt = recordedAt;
       const speed = typeof row.speed_kmh === 'number' ? row.speed_kmh : null;
 
       const statusTextMain = document.getElementById('status-text-main');
@@ -612,10 +625,14 @@
       const metricDistance = document.getElementById('metric-distance');
       const chipEta = document.getElementById('chip-eta');
 
+      const now = new Date();
+      const isStale = recordedAt && (now - recordedAt) > GPS_STALE_THRESHOLD_MS;
+
       if (recordedAt) {
-        const now = new Date();
         const diffMin = Math.round((now - recordedAt) / 60000);
-        const freshness = diffMin <= 2 ? 'Live' : `Updated ${diffMin} min ago`;
+        const freshness = isStale
+          ? `Last seen ${diffMin} min ago`
+          : (diffMin <= 2 ? 'Live' : `Updated ${diffMin} min ago`);
         const busLbl = formatBusLabel(activeBusId);
         const first = parentChildName ? parentChildName.trim().split(/\s+/)[0] : null;
         if (statusTextMain) {
@@ -630,9 +647,8 @@
         if (metricSpeed) metricSpeed.textContent = `${speed} km/h`;
       }
 
-      // Approximate distance to school marker (same as SVG school pos; adjust to real coords later)
-      const schoolLat = -1.283; // placeholder
-      const schoolLng = 36.82;  // placeholder
+      const schoolLat = -1.283;
+      const schoolLng = 36.82;
       const distKm = haversineKm(row.lat, row.lng, schoolLat, schoolLng);
       if (metricDistance) metricDistance.textContent = `${distKm.toFixed(1)} km`;
 
@@ -646,14 +662,34 @@
       }
 
       if (statusLabel) {
-        const nm = parentChildName ? parentChildName.trim().split(/\s+/)[0] : '';
-        statusLabel.textContent = nm
-          ? `Heading toward school · ${nm}'s run`
-          : 'On route to school';
+        if (currentTripStatus && TRIP_STATUS_LABELS[currentTripStatus]) {
+          statusLabel.textContent = TRIP_STATUS_LABELS[currentTripStatus];
+        } else {
+          const nm = parentChildName ? parentChildName.trim().split(/\s+/)[0] : '';
+          statusLabel.textContent = nm
+            ? `Heading toward school · ${nm}'s run`
+            : 'On route to school';
+        }
       }
+
       if (liveDotMain) {
-        liveDotMain.style.background = '#22C55E';
-        liveDotMain.style.boxShadow = '0 0 0 6px rgba(34,197,94,0.5)';
+        if (isStale) {
+          liveDotMain.style.background = '#F97316';
+          liveDotMain.style.boxShadow = '0 0 0 6px rgba(249,115,22,0.4)';
+        } else {
+          liveDotMain.style.background = '#22C55E';
+          liveDotMain.style.boxShadow = '0 0 0 6px rgba(34,197,94,0.5)';
+        }
+      }
+    }
+
+    function updateTripStatus(status) {
+      currentTripStatus = status;
+      const label = TRIP_STATUS_LABELS[status];
+      if (label) {
+        toast(label);
+        const statusLabel = document.getElementById('status-label');
+        if (statusLabel) statusLabel.textContent = label;
       }
     }
 
@@ -725,6 +761,63 @@
       }
 
       subscribeLive();
+
+      // --- Trip event subscription (real-time status + push notifications) ---
+      try {
+        const { data: activeTrip } = await client
+          .from('trips')
+          .select('id,current_status')
+          .eq('bus_id', activeBusId)
+          .is('completed_at', null)
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (activeTrip) {
+          updateTripStatus(activeTrip.current_status);
+        }
+      } catch (_) {}
+
+      const tripChannel = client
+        .channel(`trip_events_${activeBusId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'trip_events' },
+          async (payload) => {
+            const evt = payload.new;
+            if (!evt || !evt.trip_id) return;
+            try {
+              const { data: trip } = await client
+                .from('trips')
+                .select('bus_id')
+                .eq('id', evt.trip_id)
+                .maybeSingle();
+              if (trip && trip.bus_id === activeBusId) {
+                updateTripStatus(evt.status);
+              }
+            } catch (_) {}
+          }
+        );
+      tripChannel.subscribe();
+
+      // --- GPS stale checker: re-evaluate freshness every 30s ---
+      setInterval(() => {
+        if (!lastRecordedAt) return;
+        const diff = Date.now() - lastRecordedAt.getTime();
+        const liveDotMain = document.getElementById('live-dot-main');
+        const statusTextMain = document.getElementById('status-text-main');
+        if (diff > GPS_STALE_THRESHOLD_MS) {
+          if (liveDotMain) {
+            liveDotMain.style.background = '#F97316';
+            liveDotMain.style.boxShadow = '0 0 0 6px rgba(249,115,22,0.4)';
+          }
+          const diffMin = Math.round(diff / 60000);
+          const busLbl = formatBusLabel(activeBusId);
+          if (statusTextMain) {
+            statusTextMain.textContent = `${busLbl} · Last seen ${diffMin} min ago`;
+          }
+        }
+      }, 30000);
+
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) scheduleReconnect();
       });
